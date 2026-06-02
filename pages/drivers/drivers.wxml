@@ -1,0 +1,26 @@
+<view class="screen">
+  <view class="header">
+    <text class="panel-title">车手图鉴</text>
+    <text class="subtle">每位车手都有专属食物、配色和后续可解锁皮肤。</text>
+  </view>
+
+  <view class="gallery">
+    <view wx:for="{{drivers}}" wx:key="id" class="driver-card pixel-panel {{item.selected ? 'selected' : ''}}">
+      <view class="card-top">
+        <view class="mini-helmet" style="background: {{item.palette[0]}}; border-color: {{item.palette[2]}};">
+          <view style="background: {{item.palette[1]}};"></view>
+          <text>{{item.badge}}</text>
+        </view>
+        <text class="tag">{{item.selected ? '已绑定' : item.team}}</text>
+      </view>
+      <text class="name">#{{item.number}} {{item.name}}</text>
+      <text class="food">{{item.foodEmoji}} {{item.food}}</text>
+      <text class="story">{{item.story}}</text>
+      <view class="skins">
+        <text>普通</text>
+        <text>光环</text>
+        <text>冠军</text>
+      </view>
+    </view>
+  </view>
+</view>

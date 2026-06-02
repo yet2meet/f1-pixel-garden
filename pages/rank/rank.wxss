@@ -1,0 +1,81 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-bottom: 24rpx;
+}
+
+.rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.rank-card {
+  min-height: 128rpx;
+  padding: 18rpx;
+  display: grid;
+  grid-template-columns: 76rpx 82rpx 1fr 120rpx;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.rank-card.mine {
+  border-color: #f8d84a;
+}
+
+.place {
+  color: #f8d84a;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.mini-helmet {
+  position: relative;
+  width: 68rpx;
+  height: 68rpx;
+  border: 6rpx solid;
+  box-shadow: 5rpx 5rpx 0 #05070b;
+}
+
+.mini-helmet view {
+  width: 42rpx;
+  height: 16rpx;
+  margin: 17rpx 0 0 13rpx;
+}
+
+.mini-helmet text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7rpx;
+  color: #f4f0d8;
+  font-size: 18rpx;
+  font-weight: 700;
+  text-align: center;
+}
+
+.meta,
+.score {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.name {
+  color: #f4f0d8;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.score {
+  align-items: flex-end;
+  color: #37d67a;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.share {
+  width: 100%;
+  margin-top: 28rpx;
+}

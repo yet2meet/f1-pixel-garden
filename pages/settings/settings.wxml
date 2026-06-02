@@ -1,0 +1,18 @@
+<view class="screen">
+  <view class="settings-card pixel-panel">
+    <text class="panel-title">玩家信息</text>
+    <text class="subtle">{{player ? player.nickName : '尚未绑定车手'}}</text>
+    <button class="pixel-button small" bindtap="syncProfile">同步微信资料</button>
+  </view>
+
+  <view class="settings-card pixel-panel">
+    <text class="panel-title">订阅消息</text>
+    <text class="subtle">用于每周结算后接收冠军、排名和成长值结果。</text>
+    <button class="pixel-button small" bindtap="requestSubscribe">开启结算提醒</button>
+  </view>
+
+  <view class="settings-card pixel-panel">
+    <text class="panel-title">关于游戏</text>
+    <text class="subtle">像素 F1 庄园是一个轻度养成原型，当前版本使用本地缓存模拟数据，云开发接口已预留。</text>
+  </view>
+</view>

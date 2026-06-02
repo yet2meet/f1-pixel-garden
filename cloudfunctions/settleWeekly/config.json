@@ -1,0 +1,9 @@
+{
+  "triggers": [
+    {
+      "name": "weeklyChampionSettlement",
+      "type": "timer",
+      "config": "59 23 ? * SUN * *"
+    }
+  ]
+}

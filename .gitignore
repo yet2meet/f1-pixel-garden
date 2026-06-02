@@ -1,0 +1,10 @@
+node_modules/
+.netlify/
+.env
+.env.*
+*.log
+private.*.key
+project.private.config.json
+upload-info.json
+__pycache__/
+*.pyc

@@ -1,0 +1,104 @@
+.select-screen {
+  padding-bottom: 140rpx;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-bottom: 24rpx;
+}
+
+.driver-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18rpx;
+}
+
+.driver-card {
+  min-height: 442rpx;
+  padding: 18rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.driver-card.active {
+  border-color: #f8d84a;
+  box-shadow: 8rpx 8rpx 0 #9f7722;
+}
+
+.driver-card.current {
+  background: #242b3b;
+}
+
+.driver-portrait {
+  position: relative;
+  width: 192rpx;
+  height: 240rpx;
+  margin: 0 auto 4rpx;
+  overflow: hidden;
+  border: 4rpx solid #f4f0d8;
+  background: #18202c;
+}
+
+.portrait-frame {
+  width: 192rpx;
+  height: 240rpx;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.mini-helmet {
+  position: absolute;
+  left: 8rpx;
+  top: 8rpx;
+  width: 54rpx;
+  height: 54rpx;
+  border: 4rpx solid;
+  box-shadow: 4rpx 4rpx 0 #05070b;
+}
+
+.mini-helmet view {
+  width: 32rpx;
+  height: 12rpx;
+  margin: 13rpx 0 0 10rpx;
+}
+
+.mini-helmet text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5rpx;
+  color: #f4f0d8;
+  font-size: 16rpx;
+  font-weight: 700;
+  text-align: center;
+}
+
+.driver-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.driver-name {
+  min-height: 58rpx;
+  color: #f4f0d8;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 32rpx;
+}
+
+.food {
+  color: #f8d84a;
+  font-size: 22rpx;
+}
+
+.confirm {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: 32rpx;
+  width: auto;
+}

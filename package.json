@@ -1,0 +1,13 @@
+{
+  "name": "f1-pixel-garden",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx netlify dev",
+    "check": "node --check pwa/app.js && node --check pwa/sw.js && node --check netlify/functions/game.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^9.1.2"
+  }
+}
