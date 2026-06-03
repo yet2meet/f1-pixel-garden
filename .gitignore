@@ -8,3 +8,4 @@ project.private.config.json
 upload-info.json
 __pycache__/
 *.pyc
+pwa/qa/
