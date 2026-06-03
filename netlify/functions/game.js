@@ -23,17 +23,19 @@ export async function handler(event) {
 
   if (!VALID_ACTIONS.has(body.action)) return json(400, { error: "invalid_action" });
 
-  const store = getStore("f1-pixel-garden");
+  const store = createStore();
 
   if (body.action === "syncPlayer") {
     const player = normalizePlayer(body.player);
     if (!player) return json(400, { error: "invalid_player" });
 
+    if (!store) return json(200, { ok: true, storage: "volatile", player });
+
     const weekKey = weeklyKey(player.weekId, player.playerId);
     await store.setJSON(weekKey, player);
     await store.setJSON(`players/${player.playerId}`, player);
 
-    return json(200, { ok: true, player });
+    return json(200, { ok: true, storage: "blob", player });
   }
 
   if (body.action === "resetPlayer") {
@@ -41,14 +43,18 @@ export async function handler(event) {
     const weekId = safeWeekId(body.weekId);
     if (!playerId || !weekId) return json(400, { error: "invalid_player" });
 
-    await store.delete(weeklyKey(weekId, playerId));
-    await store.delete(`players/${playerId}`);
+    if (store) {
+      await store.delete(weeklyKey(weekId, playerId));
+      await store.delete(`players/${playerId}`);
+    }
 
-    return json(200, { ok: true });
+    return json(200, { ok: true, storage: store ? "blob" : "volatile" });
   }
 
   const weekId = safeWeekId(body.weekId);
   if (!weekId) return json(400, { error: "invalid_week" });
+
+  if (!store) return json(200, { ok: true, storage: "volatile", weekId, rankings: [] });
 
   const list = await store.list({ prefix: `leaderboards/${weekId}/` });
   const players = await Promise.all(
@@ -64,7 +70,7 @@ export async function handler(event) {
     })
     .slice(0, MAX_RANKINGS);
 
-  return json(200, { ok: true, weekId, rankings });
+  return json(200, { ok: true, storage: "blob", weekId, rankings });
 }
 
 function json(statusCode, payload) {
@@ -73,6 +79,15 @@ function json(statusCode, payload) {
     headers: CORS_HEADERS,
     body: statusCode === 204 ? "" : JSON.stringify(payload),
   };
+}
+
+function createStore() {
+  try {
+    return getStore("f1-pixel-garden");
+  } catch (error) {
+    if (error && error.name === "MissingBlobsEnvironmentError") return null;
+    throw error;
+  }
 }
 
 function normalizePlayer(raw) {

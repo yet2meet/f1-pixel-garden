@@ -1,4 +1,4 @@
-const CACHE_NAME = "f1-pixel-pwa-v8";
+const CACHE_NAME = "f1-pixel-pwa-v9";
 
 const drivers = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];
 const expressions = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
