@@ -468,7 +468,7 @@ function renderSideDriverName(name) {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => `<span class="name-word">${[...word].map((letter) => `<span>${letter}</span>`).join("")}</span>`)
+    .map((word) => `<span class="name-word">${[...word].reverse().map((letter) => `<span>${letter}</span>`).join("")}</span>`)
     .join("");
   return `<h2 class="driver-name" aria-label="${name}">${words}</h2>`;
 }
@@ -484,7 +484,7 @@ function renderHome() {
     : Math.min(100, Math.round(((growth - level.minGrowth) / (nextLevel.minGrowth - level.minGrowth)) * 100));
   const disabled = remain <= 0 || feed.stock <= 0 || state.isFeeding;
   return `
-    <main>
+    <main class="home-main">
       <section class="hero-stage ${state.luckyFlash ? "lucky" : ""}" style="--driver:${driver.color}">
         <div class="track-lines"></div>
         <div class="driver-card">
@@ -533,7 +533,7 @@ function renderHome() {
 
 function renderSelect() {
   return `
-    <main>
+    <main class="select-main">
       <section class="panel intro-panel">
         <h2>选择你的首发车手</h2>
         <p class="label">当前版本包含 8 位车手，每位都有 8 张表情头像。选择后可在本地重新绑定。</p>
@@ -548,7 +548,7 @@ function renderSelect() {
           </button>
         `).join("")}
       </section>
-      <section class="actions" style="margin-top:14px">
+      <section class="actions select-actions">
         <button class="btn" data-bind="${state.selectedDriverId}">确认绑定</button>
       </section>
     </main>
@@ -557,7 +557,7 @@ function renderSelect() {
 
 function renderGarage() {
   return `
-    <main>
+    <main class="garage-main">
       <section class="panel">
         <h2>车手图鉴</h2>
         <div class="list">
@@ -582,7 +582,7 @@ function renderLeaderboard() {
   const local = publicPlayerSnapshot();
   const rows = state.leaderboard.length ? state.leaderboard : local ? [local] : [];
   return `
-    <main>
+    <main class="leaderboard-main">
       <section class="panel">
         <h2>本周排行榜</h2>
         <p class="label">${state.backend === "online" ? "云端数据已同步，所有玩家共享同一周榜。" : "当前是本地模式。部署 Netlify Functions 后会自动切换到云端周榜。"}</p>
@@ -613,7 +613,7 @@ function renderAchievements() {
   const { player, feed, level, nextLevel } = currentModel();
   const growth = player ? player.growth || 0 : 0;
   return `
-    <main>
+    <main class="achievements-main">
       <section class="panel">
         <h2>成就档案</h2>
         <p>当前等级：<strong>${level.name}</strong></p>
@@ -639,7 +639,7 @@ function renderAchievements() {
 
 function renderSettings() {
   return `
-    <main>
+    <main class="settings-main">
       <section class="panel">
         <h2>设置</h2>
         <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。数据保存在本机浏览器。</p>
