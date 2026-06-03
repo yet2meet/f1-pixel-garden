@@ -240,21 +240,54 @@ main:has(.hero-stage) {
 }
 
 .driver-name {
-  margin: clamp(3px, 0.8vh, 8px) 0 0;
+  position: absolute;
+  left: clamp(10px, 3vw, 20px);
+  top: 50%;
+  z-index: 3;
+  max-width: clamp(34px, 13vw, 64px);
+  margin: 0;
   color: var(--f1-white);
-  font-size: clamp(19px, 6.4vw, 32px);
+  font-size: clamp(14px, 4.7vw, 24px);
   line-height: 1;
   text-align: center;
   text-transform: uppercase;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min-content;
+  justify-items: center;
+  align-content: center;
+  gap: clamp(3px, 1vw, 8px);
+  transform: translateY(-50%);
   text-shadow: 2px 0 0 var(--f1-red), 0 0 18px color-mix(in srgb, var(--driver, var(--f1-red)) 45%, transparent);
+  opacity: 0.96;
+  pointer-events: none;
+}
+
+.name-word {
+  display: grid;
+  grid-auto-rows: min-content;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0px, 0.12vh, 2px);
+  padding: 0;
+}
+
+.name-word span {
+  display: inline-grid;
+  width: 1em;
+  height: 0.86em;
+  place-items: center;
+  transform: rotate(-90deg);
+  transform-origin: center;
 }
 
 .portrait-wrap {
   position: relative;
-  width: min(62vw, 34vh, 300px);
+  width: min(56vw, 34vh, 300px);
   max-width: 100%;
   aspect-ratio: 4 / 5;
   align-self: end;
+  justify-self: center;
   margin: clamp(2px, 0.8vh, 8px) 0 0;
   padding: 0;
   border: 0;

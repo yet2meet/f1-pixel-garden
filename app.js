@@ -463,6 +463,16 @@ function renderView() {
   return renderHome();
 }
 
+function renderSideDriverName(name) {
+  const words = String(name)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => `<span class="name-word">${[...word].map((letter) => `<span>${letter}</span>`).join("")}</span>`)
+    .join("");
+  return `<h2 class="driver-name" aria-label="${name}">${words}</h2>`;
+}
+
 function renderHome() {
   const { player, feed, driver, level, nextLevel } = currentModel();
   if (!player) return renderSelect();
@@ -482,7 +492,7 @@ function renderHome() {
             <span>#${driver.number} ${driver.team}</span>
             <span>${level.name}</span>
           </div>
-          <h2 class="driver-name">${driver.name}</h2>
+          ${renderSideDriverName(driver.name)}
           <button class="portrait-wrap ${state.isFeeding ? "is-feeding" : ""}" data-action="talk" aria-label="和车手互动">
             <img data-home-portrait="${driver.id}" src="${portraitSrc(driver)}" alt="${driver.name}" />
           </button>
