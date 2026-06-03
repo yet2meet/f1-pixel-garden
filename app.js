@@ -257,8 +257,8 @@ async function syncRemote(reason = "sync") {
   const snapshot = publicPlayerSnapshot();
   if (!snapshot) return;
   try {
-    await callGameApi({ action: "syncPlayer", reason, player: snapshot });
-    state.backend = "online";
+    const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot });
+    state.backend = data.storage === "blob" ? "online" : "offline";
   } catch {
     state.backend = "offline";
   }
@@ -267,7 +267,7 @@ async function syncRemote(reason = "sync") {
 async function refreshLeaderboard({ silent = true } = {}) {
   try {
     const data = await callGameApi({ action: "leaderboard", weekId: getWeekId() });
-    state.backend = "online";
+    state.backend = data.storage === "blob" ? "online" : "offline";
     state.leaderboard = Array.isArray(data.rankings) ? data.rankings : [];
     state.leaderboardUpdatedAt = Date.now();
     render();
