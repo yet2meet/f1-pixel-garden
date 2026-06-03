@@ -155,8 +155,28 @@ main {
   gap: clamp(7px, 1.4vh, 12px);
 }
 
-main:has(.hero-stage) {
+.home-main {
   grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+main:not(.home-main) {
+  display: block;
+  overflow-y: auto;
+  padding-bottom: clamp(6px, 1.4vh, 12px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(57, 255, 20, 0.6) rgba(0, 0, 0, 0.18);
+}
+
+main:not(.home-main) > * + * {
+  margin-top: clamp(8px, 1.5vh, 14px);
+}
+
+main:not(.home-main)::-webkit-scrollbar {
+  width: 6px;
+}
+
+main:not(.home-main)::-webkit-scrollbar-thumb {
+  background: rgba(57, 255, 20, 0.58);
 }
 
 .hero-stage {
@@ -428,6 +448,11 @@ main:has(.hero-stage) {
   gap: clamp(7px, 1.8vw, 12px);
 }
 
+main:not(.home-main) > .actions {
+  grid-template-columns: 1fr;
+  margin-top: 0;
+}
+
 .btn {
   position: relative;
   min-height: clamp(46px, 7.6vh, 62px);
@@ -445,6 +470,31 @@ main:has(.hero-stage) {
   clip-path: polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
   box-shadow: 0 8px 0 #730817, 0 16px 22px rgba(0, 0, 0, 0.42);
   overflow: hidden;
+}
+
+main:not(.home-main) .btn {
+  min-height: clamp(38px, 5.6vh, 46px);
+  max-height: 48px;
+  padding-block: 0;
+  font-size: clamp(10px, 2.8vw, 13px);
+  box-shadow: 0 5px 0 #730817, 0 10px 14px rgba(0, 0, 0, 0.34);
+}
+
+main:not(.home-main) .actions .btn {
+  width: min(100%, 280px);
+  justify-self: center;
+}
+
+.settings-main > .actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-main > .actions .btn {
+  width: 100%;
+}
+
+.select-actions {
+  padding-bottom: 2px;
 }
 
 .btn::after {
@@ -483,15 +533,15 @@ main:has(.hero-stage) {
 }
 
 .driver-grid {
-  min-height: 0;
+  min-height: max-content;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(7px, 1.6vh, 12px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .driver-tile {
-  min-height: 0;
+  min-height: clamp(156px, 24vh, 220px);
   padding: clamp(6px, 1.5vw, 10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   background:
@@ -510,7 +560,7 @@ main:has(.hero-stage) {
 .driver-tile img {
   display: block;
   width: 100%;
-  height: min(22vh, 170px);
+  height: clamp(104px, 17.5vh, 156px);
   object-fit: contain;
   image-rendering: pixelated;
 }
@@ -534,7 +584,7 @@ main:has(.hero-stage) {
 .panel {
   min-height: 0;
   padding: clamp(10px, 2vh, 16px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panel h2 {
@@ -549,7 +599,7 @@ main:has(.hero-stage) {
   min-height: 0;
   display: grid;
   gap: 8px;
-  overflow: auto;
+  overflow: visible;
   scrollbar-width: none;
 }
 
