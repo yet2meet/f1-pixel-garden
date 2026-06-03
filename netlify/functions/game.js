@@ -1,4 +1,4 @@
-import { getStore } from "@netlify/blobs";
+import { connectLambda, getStore } from "@netlify/blobs";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -23,7 +23,7 @@ export async function handler(event) {
 
   if (!VALID_ACTIONS.has(body.action)) return json(400, { error: "invalid_action" });
 
-  const store = createStore();
+  const store = createStore(event);
 
   if (body.action === "syncPlayer") {
     const player = normalizePlayer(body.player);
@@ -81,8 +81,9 @@ function json(statusCode, payload) {
   };
 }
 
-function createStore() {
+function createStore(event) {
   try {
+    if (event.blobs) connectLambda(event);
     return getStore("f1-pixel-garden");
   } catch (error) {
     if (error && error.name === "MissingBlobsEnvironmentError") return null;
