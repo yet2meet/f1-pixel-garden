@@ -21,7 +21,18 @@ const drivers = [
     badge: "MV",
     moodEmoji: "😎",
     color: "#2f5be8",
-    quotes: ["Simply lovely.", "That was mega!", "Box, box? I am flying."],
+    quotes: [
+      "Simply lovely.",
+      "That was mega!",
+      "Box, box? I am flying.",
+      "No drama. Just apex, throttle, repeat.",
+      "Give me clean air and I will handle the rest.",
+      "Track limits? I prefer track dominance.",
+      "This lap feels purple already.",
+      "I smell fastest sector.",
+      "Keep the snacks efficient. I have a race to win.",
+      "Tell the pit wall I am pushing.",
+    ],
     story: "强势、直接、节奏惊人，把每一次起步都当成决胜圈。",
   },
   {
@@ -34,7 +45,18 @@ const drivers = [
     badge: "CL",
     moodEmoji: "😉",
     color: "#ef2635",
-    quotes: ["We are checking.", "Forza Ferrari!", "I need one clean lap."],
+    quotes: [
+      "We are checking.",
+      "Forza Ferrari!",
+      "I need one clean lap.",
+      "The car is alive in sector two.",
+      "Give me space. I will paint the kerbs red.",
+      "This is quali mode in my heart.",
+      "I can find two tenths if the tyres wake up.",
+      "Copy. Head down, full send.",
+      "If we suffer, we suffer beautifully.",
+      "One more lap. I can make it count.",
+    ],
     story: "法拉利红色车库里的速度诗人，排位赛手感总是闪闪发亮。",
   },
   {
@@ -47,7 +69,18 @@ const drivers = [
     badge: "LH",
     moodEmoji: "💜",
     color: "#b5121b",
-    quotes: ["Still we rise.", "Hammer time.", "Forza Ferrari."],
+    quotes: [
+      "Still we rise.",
+      "Hammer time.",
+      "Forza Ferrari.",
+      "Bono, my snacks are gone.",
+      "The tyres are speaking. I am listening.",
+      "Let us keep the energy clean.",
+      "Every lap is a chance to reset.",
+      "I have got more pace in the pocket.",
+      "This corner needs patience, then power.",
+      "Keep believing. I am still here.",
+    ],
     story: "七冠传奇披上法拉利红，稳定、优雅，也会在关键时刻拿出冠军级爆发。",
   },
   {
@@ -60,7 +93,18 @@ const drivers = [
     badge: "LN",
     moodEmoji: "😃",
     color: "#ff8700",
-    quotes: ["Send it!", "That was spicy.", "Papaya power!"],
+    quotes: [
+      "Send it!",
+      "That was spicy.",
+      "Papaya power!",
+      "I saw the gap and it looked friendly.",
+      "Box for snacks? Asking professionally.",
+      "This pace is actually decent.",
+      "Let Oscar know I am being very mature.",
+      "The kerb bit back. Rude.",
+      "Give me one more lap; I am cooking.",
+      "If this works, pretend it was the plan.",
+    ],
     story: "迈凯伦橙色能量担当，轻松外表下藏着越来越锋利的比赛节奏。",
   },
   {
@@ -73,7 +117,18 @@ const drivers = [
     badge: "OP",
     moodEmoji: "🧊",
     color: "#47c7fc",
-    quotes: ["Cool, understood.", "Nice and calm.", "Let's execute."],
+    quotes: [
+      "Cool, understood.",
+      "Nice and calm.",
+      "Let's execute.",
+      "The tyres are good. No need for poetry.",
+      "I will pass when the maths says yes.",
+      "Copy. Minimal fuss, maximum lap time.",
+      "This is fine. Very fine.",
+      "Tell Lando I said hi from the apex.",
+      "I can manage this stint.",
+      "Quiet car, quick car. I like it.",
+    ],
     story: "冷脸新星，学习速度快到像偷偷开了升级包。",
   },
   {
@@ -86,7 +141,18 @@ const drivers = [
     badge: "GR",
     moodEmoji: "📋",
     color: "#00d2be",
-    quotes: ["Let's keep pushing.", "Tyres feel good.", "That was tidy."],
+    quotes: [
+      "Let's keep pushing.",
+      "Tyres feel good.",
+      "That was tidy.",
+      "Forecast says opportunity.",
+      "I can be sensible and quick. Mostly quick.",
+      "This is our moment if we stay sharp.",
+      "Give me the gap. I will measure it properly.",
+      "Mode push. Clipboard closed.",
+      "The car is responding well.",
+      "No overthinking. Hit the marks.",
+    ],
     story: "学院派速度机器，精准、勤奋，等待属于自己的银箭高光。",
   },
   {
@@ -99,7 +165,18 @@ const drivers = [
     badge: "KA",
     moodEmoji: "⚡",
     color: "#cfd6dd",
-    quotes: ["Copy, I am pushing.", "Let's keep learning.", "That felt quick!"],
+    quotes: [
+      "Copy, I am pushing.",
+      "Let's keep learning.",
+      "That felt quick!",
+      "I am young, not slow.",
+      "Give me the delta. I will chase it.",
+      "The car is nervous, but I can work with it.",
+      "Silver suit, rookie licence, full attack.",
+      "I will keep it clean through the next sector.",
+      "Every lap is data.",
+      "Tell George I am taking notes.",
+    ],
     story: "梅赛德斯年轻新星，冷静、学习快，带着银箭青训的锐利速度登场。",
   },
   {
@@ -112,7 +189,18 @@ const drivers = [
     badge: "FA",
     moodEmoji: "🧠",
     color: "#006f62",
-    quotes: ["GP2 engine!", "El plan.", "I know what to do."],
+    quotes: [
+      "GP2 engine!",
+      "El plan.",
+      "I know what to do.",
+      "Leave-a the space.",
+      "The plan is older than the tyres.",
+      "I have seen this race before. Twice.",
+      "Give me chaos. I can use it.",
+      "Strategy B? I invented Strategy B.",
+      "This corner owes me respect.",
+      "Trust the experience. And the snacks.",
+    ],
     story: "经验和斗志都拉满的老冠军，任何弯角都可能藏着他的计划。",
   },
 ];
@@ -141,6 +229,7 @@ const state = {
   feedDelta: 0,
   luckyFlash: false,
   expressionFrame: 0,
+  lastQuoteByDriver: {},
 };
 
 const app = document.querySelector("#app");
@@ -406,7 +495,8 @@ function feedDriver() {
 function talkToDriver() {
   const { driver } = currentModel();
   state.mood = "talk";
-  state.line = randomLine(driver.quotes);
+  state.line = randomLine(driver.quotes, state.lastQuoteByDriver[driver.id]);
+  state.lastQuoteByDriver[driver.id] = state.line;
   render();
   window.setTimeout(() => {
     state.mood = "idle";
@@ -415,8 +505,9 @@ function talkToDriver() {
   }, 2200);
 }
 
-function randomLine(lines) {
-  return lines[Math.floor(Math.random() * lines.length)] || "";
+function randomLine(lines, previous = "") {
+  const pool = lines.length > 1 ? lines.filter((line) => line !== previous) : lines;
+  return pool[Math.floor(Math.random() * pool.length)] || "";
 }
 
 function showToast(message) {
