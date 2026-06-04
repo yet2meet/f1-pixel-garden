@@ -1,4 +1,5 @@
 import { connectLambda, getStore } from "@netlify/blobs";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -8,7 +9,7 @@ const CORS_HEADERS = {
 };
 
 const MAX_RANKINGS = 50;
-const VALID_ACTIONS = new Set(["syncPlayer", "leaderboard", "resetPlayer"]);
+const VALID_ACTIONS = new Set(["syncPlayer", "leaderboard", "resetPlayer", "registerAccount", "loginAccount"]);
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return json(204, {});
@@ -24,6 +25,39 @@ export async function handler(event) {
   if (!VALID_ACTIONS.has(body.action)) return json(400, { error: "invalid_action" });
 
   const store = createStore(event);
+
+  if (body.action === "registerAccount" || body.action === "loginAccount") {
+    if (!store) return json(503, { ok: false, error: "storage_unavailable" });
+
+    const credentials = normalizeCredentials(body);
+    if (!credentials) return json(400, { ok: false, error: "invalid_credentials" });
+
+    const accountKey = `accounts/${accountId(credentials.accountName)}`;
+    const existing = await store.get(accountKey, { type: "json" }).catch(() => null);
+
+    if (body.action === "registerAccount") {
+      if (existing) return json(409, { ok: false, error: "account_exists" });
+
+      const salt = randomBytes(16).toString("hex");
+      const account = {
+        id: accountId(credentials.accountName),
+        accountName: credentials.accountName,
+        nickName: credentials.nickName,
+        passwordHash: hashPassword(credentials.password, salt),
+        salt,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      await store.setJSON(accountKey, account);
+      return json(200, { ok: true, storage: "blob", account: publicAccount(account) });
+    }
+
+    if (!existing || !verifyPassword(credentials.password, existing)) {
+      return json(401, { ok: false, error: "invalid_login" });
+    }
+
+    return json(200, { ok: true, storage: "blob", account: publicAccount(existing) });
+  }
 
   if (body.action === "syncPlayer") {
     const player = normalizePlayer(body.player);
@@ -110,6 +144,42 @@ function normalizePlayer(raw) {
     weeklyFeed: clampNumber(raw.weeklyFeed, 0, 999999),
     usedFeeds: clampNumber(raw.usedFeeds, 0, 50),
     updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+  };
+}
+
+function normalizeCredentials(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const accountName = normalizeAccountName(raw.accountName);
+  const password = String(raw.password || "");
+  const nickName = clampText(raw.nickName || accountName, 24);
+  if (!accountName || password.length < 4 || password.length > 72) return null;
+  return { accountName, password, nickName };
+}
+
+function normalizeAccountName(value) {
+  const cleaned = String(value || "").trim().toLowerCase();
+  return /^[a-z0-9_-]{3,24}$/.test(cleaned) ? cleaned : "";
+}
+
+function accountId(accountName) {
+  return `acct_${createHash("sha256").update(accountName).digest("hex").slice(0, 24)}`;
+}
+
+function hashPassword(password, salt) {
+  return createHash("sha256").update(`${salt}:${password}`).digest("hex");
+}
+
+function verifyPassword(password, account) {
+  const expected = Buffer.from(String(account.passwordHash || ""), "hex");
+  const actual = Buffer.from(hashPassword(password, account.salt || ""), "hex");
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function publicAccount(account) {
+  return {
+    id: account.id,
+    accountName: account.accountName,
+    nickName: account.nickName,
   };
 }
 
