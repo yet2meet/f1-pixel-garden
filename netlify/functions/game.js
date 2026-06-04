@@ -33,7 +33,7 @@ export async function handler(event) {
     if (!credentials) return json(400, { ok: false, error: "invalid_credentials" });
 
     const accountKey = `accounts/${accountId(credentials.accountName)}`;
-    const existing = await store.get(accountKey, { type: "json" }).catch(() => null);
+    const existing = await store.get(accountKey, { consistency: "strong", type: "json" }).catch(() => null);
 
     if (body.action === "registerAccount") {
       if (existing) return json(409, { ok: false, error: "account_exists" });
