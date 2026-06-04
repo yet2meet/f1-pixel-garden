@@ -32,8 +32,8 @@ export async function handler(event) {
     const credentials = normalizeCredentials(body);
     if (!credentials) return json(400, { ok: false, error: "invalid_credentials" });
 
-    const accountKey = `accounts/${accountId(credentials.accountName)}`;
-    const existing = await store.get(accountKey, { consistency: "strong", type: "json" }).catch(() => null);
+    const accounts = await getAccountsIndex(store);
+    const existing = accounts[credentials.accountName] || null;
 
     if (body.action === "registerAccount") {
       if (existing) return json(409, { ok: false, error: "account_exists" });
@@ -46,12 +46,16 @@ export async function handler(event) {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      await store.setJSON(accountKey, account);
+      accounts[credentials.accountName] = account;
+      await store.setJSON("accounts-index", accounts);
       return json(200, { ok: true, storage: "blob", account: publicAccount(account) });
     }
 
     if (!existing || !verifyPassword(credentials.password, existing)) {
-      return json(401, { ok: false, error: "invalid_login" });
+      return json(401, {
+        ok: false,
+        error: "invalid_login",
+      });
     }
 
     return json(200, { ok: true, storage: "blob", account: publicAccount(existing) });
@@ -183,6 +187,11 @@ function publicAccount(account) {
 
 function weeklyKey(weekId, playerId) {
   return `leaderboards/${weekId}/${playerId}`;
+}
+
+async function getAccountsIndex(store) {
+  const accounts = await store.get("accounts-index", { type: "json" }).catch(() => null);
+  return accounts && typeof accounts === "object" && !Array.isArray(accounts) ? accounts : {};
 }
 
 function safeId(value) {
