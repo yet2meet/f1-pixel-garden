@@ -1,5 +1,5 @@
 import { connectLambda, getStore } from "@netlify/blobs";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -38,13 +38,11 @@ export async function handler(event) {
     if (body.action === "registerAccount") {
       if (existing) return json(409, { ok: false, error: "account_exists" });
 
-      const salt = randomBytes(16).toString("hex");
       const account = {
         id: accountId(credentials.accountName),
         accountName: credentials.accountName,
         nickName: credentials.nickName,
-        passwordHash: hashPassword(credentials.password, salt),
-        salt,
+        passwordHash: hashPassword(credentials.accountName, credentials.password),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -165,13 +163,13 @@ function accountId(accountName) {
   return `acct_${createHash("sha256").update(accountName).digest("hex").slice(0, 24)}`;
 }
 
-function hashPassword(password, salt) {
-  return createHash("sha256").update(`${salt}:${password}`).digest("hex");
+function hashPassword(accountName, password) {
+  return createHash("sha256").update(`${accountName}:${password}`).digest("hex");
 }
 
 function verifyPassword(password, account) {
   const expected = Buffer.from(String(account.passwordHash || ""), "hex");
-  const actual = Buffer.from(hashPassword(password, account.salt || ""), "hex");
+  const actual = Buffer.from(hashPassword(account.accountName || "", password), "hex");
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
