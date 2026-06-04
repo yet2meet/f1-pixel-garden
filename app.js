@@ -2,6 +2,7 @@ const STORAGE = {
   player: "f1_pixel_pwa_player",
   feed: "f1_pixel_pwa_feed",
   deviceId: "f1_pixel_pwa_device_id",
+  account: "f1_pixel_pwa_account",
 };
 
 const DAILY_LIMIT = 5;
@@ -235,6 +236,12 @@ const state = {
 const app = document.querySelector("#app");
 
 function ensurePlayerId() {
+  const account = getAccount();
+  if (account) {
+    state.playerId = account.id;
+    return account.id;
+  }
+
   let id = localStorage.getItem(STORAGE.deviceId);
   if (!id) {
     id = crypto.randomUUID ? crypto.randomUUID() : `player-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -292,6 +299,15 @@ function savePlayer(player) {
   writeJson(STORAGE.player, { ...player, updatedAt: Date.now() });
 }
 
+function getAccount() {
+  return readJson(STORAGE.account);
+}
+
+function saveAccount(account) {
+  writeJson(STORAGE.account, account);
+  state.playerId = account.id;
+}
+
 function getFeedState() {
   const today = todayKey();
   const weekId = getWeekId();
@@ -315,10 +331,12 @@ function saveFeedState(feed) {
 
 function publicPlayerSnapshot(player = getPlayer(), feed = getFeedState()) {
   if (!player) return null;
+  const account = getAccount();
+  if (!account) return null;
   const driver = getDriver(player.driverId);
   return {
-    playerId: ensurePlayerId(),
-    nickName: player.nickName || "像素车迷",
+    playerId: account.id,
+    nickName: account.nickName || player.nickName || account.accountName,
     driverId: driver.id,
     driverName: driver.name,
     team: driver.team,
@@ -338,8 +356,9 @@ async function callGameApi(payload, options = {}) {
     body: JSON.stringify(payload),
     signal: options.signal,
   });
-  if (!response.ok) throw new Error(`Game API ${response.status}`);
-  return response.json();
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Game API ${response.status}`);
+  return data;
 }
 
 async function syncRemote(reason = "sync") {
@@ -367,18 +386,59 @@ async function refreshLeaderboard({ silent = true } = {}) {
   }
 }
 
+async function authenticateAccount(mode) {
+  const accountName = app.querySelector("[data-auth-account]")?.value.trim();
+  const password = app.querySelector("[data-auth-password]")?.value;
+  const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
+  if (!accountName || !password) return showToast("请输入账号和密码");
+
+  try {
+    const data = await callGameApi({
+      action: mode === "register" ? "registerAccount" : "loginAccount",
+      accountName,
+      password,
+      nickName,
+    });
+    saveAccount(data.account);
+    const player = getPlayer();
+    if (player) savePlayer({ ...player, nickName: data.account.nickName });
+    state.backend = data.storage === "blob" ? "online" : "offline";
+    showToast(mode === "register" ? "账号已注册并登录" : "账号已登录");
+    render();
+    syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
+  } catch (error) {
+    const message = {
+      account_exists: "账号已存在，请直接登录",
+      invalid_login: "账号或密码不正确",
+      invalid_credentials: "账号需 3-24 位英文/数字/_/-，密码至少 4 位",
+      storage_unavailable: "云端账号暂时不可用",
+    }[error.message] || "账号操作失败";
+    showToast(message);
+  }
+}
+
+function logoutAccount() {
+  localStorage.removeItem(STORAGE.account);
+  state.playerId = "";
+  showToast("已退出账号，本地进度仍保留");
+  render();
+}
+
 function bootstrapBackend() {
-  ensurePlayerId();
+  const account = getAccount();
+  if (account) state.playerId = account.id;
   syncRemote("boot").finally(() => refreshLeaderboard({ silent: true }));
 }
 
 function bindDriver(driverId) {
   const old = getPlayer();
+  const account = getAccount();
   const driver = getDriver(driverId);
   const player = {
     id: "me",
     nickName: old ? old.nickName : "像素车迷",
     driverId: driver.id,
+    nickName: account ? account.nickName : old ? old.nickName : "Pixel Racer",
     growth: old && old.driverId === driver.id ? old.growth : 0,
     championWeeks: old && old.driverId === driver.id ? old.championWeeks || [] : [],
     createdAt: old ? old.createdAt : Date.now(),
@@ -729,8 +789,30 @@ function renderAchievements() {
 }
 
 function renderSettings() {
+  const account = getAccount();
   return `
     <main class="settings-main">
+      <section class="panel account-panel">
+        <h2>云端账号</h2>
+        ${account ? `
+          <p class="label">已登录：${account.nickName} / ${account.accountName}</p>
+          <p class="label">排行榜 ID：${account.id}</p>
+          <section class="actions">
+            <button class="btn secondary" data-action="logoutAccount">退出账号</button>
+          </section>
+        ` : `
+          <p class="label">登录后排行榜会绑定到同一个账号。清空浏览器数据后，重新登录同一账号即可继续使用原排行榜身份。</p>
+          <div class="account-form">
+            <input data-auth-account autocomplete="username" maxlength="24" placeholder="账号：英文/数字/_/-" />
+            <input data-auth-nickname maxlength="24" placeholder="昵称：排行榜显示名" />
+            <input data-auth-password autocomplete="current-password" maxlength="72" type="password" placeholder="密码：至少 4 位" />
+          </div>
+          <section class="actions account-actions">
+            <button class="btn" data-action="registerAccount">注册并登录</button>
+            <button class="btn secondary" data-action="loginAccount">登录</button>
+          </section>
+        `}
+      </section>
       <section class="panel">
         <h2>设置</h2>
         <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。数据保存在本机浏览器。</p>
@@ -781,6 +863,9 @@ function bindEvents() {
       if (action === "talk") talkToDriver();
       if (action === "reset") resetAll();
       if (action === "refreshLeaderboard") refreshLeaderboard({ silent: false });
+      if (action === "registerAccount") authenticateAccount("register");
+      if (action === "loginAccount") authenticateAccount("login");
+      if (action === "logoutAccount") logoutAccount();
       if (action === "install") showToast("iOS: Safari 分享按钮 -> 添加到主屏幕；Android: 浏览器菜单 -> 安装应用");
     });
   });

@@ -646,6 +646,41 @@ main:not(.home-main) .actions .btn {
   outline: 1px solid rgba(57, 255, 20, 0.54);
 }
 
+.account-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.account-form input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(57, 255, 20, 0.42);
+  border-radius: 0;
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.08), transparent 34%),
+    rgba(1, 8, 18, 0.82);
+  color: var(--f1-white);
+  font: inherit;
+  font-size: clamp(11px, 3vw, 14px);
+  clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  outline: none;
+}
+
+.account-form input:focus {
+  border-color: var(--f1-green);
+  box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.16);
+}
+
+.account-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-actions .btn {
+  width: 100%;
+}
+
 .tabbar {
   position: relative;
   z-index: 20;
