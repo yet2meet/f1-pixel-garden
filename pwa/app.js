@@ -364,8 +364,9 @@ async function callGameApi(payload, options = {}) {
 async function syncRemote(reason = "sync") {
   const snapshot = publicPlayerSnapshot();
   if (!snapshot) return;
+  const account = getAccount();
   try {
-    const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot });
+    const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot, accountToken: account?.authToken });
     state.backend = data.storage === "blob" ? "online" : "offline";
   } catch {
     state.backend = "offline";
@@ -459,7 +460,8 @@ function resetAll() {
   state.line = "";
   showToast("本地数据已清空");
   render();
-  callGameApi({ action: "resetPlayer", playerId: ensurePlayerId(), weekId: getWeekId() })
+  const account = getAccount();
+  callGameApi({ action: "resetPlayer", playerId: ensurePlayerId(), weekId: getWeekId(), accountToken: account?.authToken })
     .finally(() => refreshLeaderboard({ silent: true }));
 }
 

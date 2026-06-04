@@ -1,5 +1,5 @@
 import { connectLambda, getStore } from "@netlify/blobs";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -38,17 +38,21 @@ export async function handler(event) {
     if (body.action === "registerAccount") {
       if (existing) return json(409, { ok: false, error: "account_exists" });
 
+      const authToken = createAuthToken();
+      const passwordSalt = createPasswordSalt();
       const account = {
         id: accountId(credentials.accountName),
         accountName: credentials.accountName,
         nickName: credentials.nickName,
-        passwordHash: hashPassword(credentials.accountName, credentials.password),
+        passwordHash: hashPassword(credentials.accountName, credentials.password, passwordSalt),
+        passwordSalt,
+        authTokenHash: hashToken(authToken),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
       accounts[credentials.accountName] = account;
       await store.setJSON("accounts-index", accounts);
-      return json(200, { ok: true, storage: "blob", account: publicAccount(account) });
+      return json(200, { ok: true, storage: "blob", account: publicAccount(account, authToken) });
     }
 
     if (!existing || !verifyPassword(credentials.password, existing)) {
@@ -58,7 +62,17 @@ export async function handler(event) {
       });
     }
 
-    return json(200, { ok: true, storage: "blob", account: publicAccount(existing) });
+    const authToken = createAuthToken();
+    if (!existing.passwordSalt) {
+      existing.passwordSalt = createPasswordSalt();
+      existing.passwordHash = hashPassword(existing.accountName, credentials.password, existing.passwordSalt);
+    }
+    existing.authTokenHash = hashToken(authToken);
+    existing.updatedAt = Date.now();
+    accounts[credentials.accountName] = existing;
+    await store.setJSON("accounts-index", accounts);
+
+    return json(200, { ok: true, storage: "blob", account: publicAccount(existing, authToken) });
   }
 
   if (body.action === "syncPlayer") {
@@ -66,6 +80,9 @@ export async function handler(event) {
     if (!player) return json(400, { error: "invalid_player" });
 
     if (!store) return json(200, { ok: true, storage: "volatile", player });
+    if (!(await canWritePlayer(store, player.playerId, body.accountToken))) {
+      return json(401, { ok: false, error: "unauthorized_player" });
+    }
 
     const weekKey = weeklyKey(player.weekId, player.playerId);
     await store.setJSON(weekKey, player);
@@ -80,6 +97,9 @@ export async function handler(event) {
     if (!playerId || !weekId) return json(400, { error: "invalid_player" });
 
     if (store) {
+      if (!(await canWritePlayer(store, playerId, body.accountToken))) {
+        return json(401, { ok: false, error: "unauthorized_player" });
+      }
       await store.delete(weeklyKey(weekId, playerId));
       await store.delete(`players/${playerId}`);
     }
@@ -167,21 +187,47 @@ function accountId(accountName) {
   return `acct_${createHash("sha256").update(accountName).digest("hex").slice(0, 24)}`;
 }
 
-function hashPassword(accountName, password) {
+function createPasswordSalt() {
+  return randomBytes(16).toString("hex");
+}
+
+function hashPassword(accountName, password, salt) {
+  return createHash("sha256").update(`${salt}:${accountName}:${password}`).digest("hex");
+}
+
+function legacyHashPassword(accountName, password) {
   return createHash("sha256").update(`${accountName}:${password}`).digest("hex");
 }
 
 function verifyPassword(password, account) {
   const expected = Buffer.from(String(account.passwordHash || ""), "hex");
-  const actual = Buffer.from(hashPassword(account.accountName || "", password), "hex");
+  const actualHash = account.passwordSalt
+    ? hashPassword(account.accountName || "", password, account.passwordSalt)
+    : legacyHashPassword(account.accountName || "", password);
+  const actual = Buffer.from(actualHash, "hex");
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-function publicAccount(account) {
+function createAuthToken() {
+  return randomBytes(24).toString("hex");
+}
+
+function hashToken(token) {
+  return createHash("sha256").update(String(token || "")).digest("hex");
+}
+
+function verifyToken(token, tokenHash) {
+  const expected = Buffer.from(String(tokenHash || ""), "hex");
+  const actual = Buffer.from(hashToken(token), "hex");
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function publicAccount(account, authToken) {
   return {
     id: account.id,
     accountName: account.accountName,
     nickName: account.nickName,
+    authToken,
   };
 }
 
@@ -192,6 +238,13 @@ function weeklyKey(weekId, playerId) {
 async function getAccountsIndex(store) {
   const accounts = await store.get("accounts-index", { type: "json" }).catch(() => null);
   return accounts && typeof accounts === "object" && !Array.isArray(accounts) ? accounts : {};
+}
+
+async function canWritePlayer(store, playerId, accountToken) {
+  if (!playerId.startsWith("acct_")) return true;
+  const accounts = await getAccountsIndex(store);
+  const account = Object.values(accounts).find((item) => item && item.id === playerId);
+  return Boolean(account && verifyToken(accountToken, account.authTokenHash));
 }
 
 function safeId(value) {
