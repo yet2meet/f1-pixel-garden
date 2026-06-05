@@ -1,4 +1,4 @@
-const CACHE_NAME = "f1-pixel-pwa-v22";
+const CACHE_NAME = "f1-pixel-pwa-v23";
 
 const drivers = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];
 const expressions = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
@@ -38,6 +38,27 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  const freshFirst =
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/styles.css") ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/sw.js");
+
+  if (freshFirst) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
