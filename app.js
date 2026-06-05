@@ -6,6 +6,7 @@ const STORAGE = {
   friends: "f1_pixel_pwa_friends",
   deviceId: "f1_pixel_pwa_device_id",
   account: "f1_pixel_pwa_account",
+  localAccounts: "f1_pixel_pwa_local_accounts",
 };
 
 const DAILY_LIMIT = 5;
@@ -333,6 +334,60 @@ function migrateGuestProgressToAccount(account) {
   });
 }
 
+function localAccountId(accountName) {
+  return `local_${accountName.replace(/[^a-z0-9_-]/g, "_")}`;
+}
+
+function getLocalAccounts() {
+  const accounts = readJson(STORAGE.localAccounts);
+  return accounts && typeof accounts === "object" && !Array.isArray(accounts) ? accounts : {};
+}
+
+function saveLocalAccounts(accounts) {
+  writeJson(STORAGE.localAccounts, accounts);
+}
+
+function authenticateLocalAccount(mode, accountName, password, nickName) {
+  const normalizedName = String(accountName || "").trim().toLowerCase();
+  if (!/^[a-z0-9_-]{3,24}$/.test(normalizedName) || String(password || "").length < 4) {
+    showToast("账号需 3-24 位英文/数字/_/-，密码至少 4 位");
+    return false;
+  }
+
+  const accounts = getLocalAccounts();
+  const existing = accounts[normalizedName];
+  if (mode === "register" && existing) {
+    showToast("账号已存在，请直接登录");
+    return false;
+  }
+  if (mode === "login" && (!existing || existing.password !== password)) {
+    showToast("账号或密码不正确");
+    return false;
+  }
+
+  const account = existing || {
+    id: localAccountId(normalizedName),
+    accountName: normalizedName,
+    nickName: nickName || normalizedName,
+    password,
+    authToken: `local_${Date.now()}`,
+  };
+  account.nickName = nickName || account.nickName || normalizedName;
+  account.authToken = account.authToken || `local_${Date.now()}`;
+  accounts[normalizedName] = account;
+  saveLocalAccounts(accounts);
+  saveAccount({
+    id: account.id,
+    accountName: account.accountName,
+    nickName: account.nickName,
+    authToken: account.authToken,
+    localOnly: true,
+  });
+  showToast(mode === "register" ? "本地账号已注册并登录" : "本地账号已登录");
+  render();
+  return true;
+}
+
 function getDriver(id) {
   return drivers.find((driver) => driver.id === id) || drivers[0];
 }
@@ -568,6 +623,7 @@ async function authenticateAccount(mode) {
     render();
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
   } catch (error) {
+    if (authenticateLocalAccount(mode, accountName, password, nickName)) return;
     const message = {
       account_exists: "账号已存在，请直接登录",
       invalid_login: "账号或密码不正确",
@@ -811,7 +867,8 @@ function render() {
 
 function renderHeader() {
   const { feed } = currentModel();
-  const backendLabel = state.backend === "online" ? "云端在线" : state.backend === "offline" ? "本地模式" : "同步中";
+  const account = getAccount();
+  const backendLabel = account?.localOnly ? "本地账号" : state.backend === "online" ? "云端在线" : state.backend === "offline" ? "本地模式" : "同步中";
   return `
     <header class="topbar">
       <div>
@@ -1169,7 +1226,7 @@ function renderSettings() {
             <button class="btn secondary" data-action="logoutAccount">退出账号</button>
           </section>
         ` : `
-          <p class="label">登录后排行榜会绑定到同一个账号。清空浏览器数据后，重新登录同一账号即可继续使用原排行榜身份。</p>
+          <p class="label">登录后进度会绑定到同一个账号。云端不可用时会自动使用本地账号模式，同一浏览器里重新登录仍保留进度。</p>
           <div class="account-form">
             <input data-auth-account autocomplete="username" maxlength="24" placeholder="账号：英文/数字/_/-" />
             <input data-auth-nickname maxlength="24" placeholder="昵称：排行榜显示名" />
@@ -1183,7 +1240,7 @@ function renderSettings() {
       </section>
       <section class="panel">
         <h2>设置</h2>
-        <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号。</p>
+        <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号；静态站点会使用本地账号存档。</p>
       </section>
       <section class="actions">
         <button class="btn secondary" data-action="install">安装提示</button>
