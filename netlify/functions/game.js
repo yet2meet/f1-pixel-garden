@@ -201,6 +201,9 @@ function normalizeGameState(raw) {
     inventory: raw.inventory && typeof raw.inventory === "object" ? raw.inventory : null,
     gifts: raw.gifts && typeof raw.gifts === "object" ? raw.gifts : null,
     friends: raw.friends && typeof raw.friends === "object" ? raw.friends : null,
+    meta: raw.meta && typeof raw.meta === "object" ? raw.meta : null,
+    skins: raw.skins && typeof raw.skins === "object" ? raw.skins : null,
+    achievementsState: raw.achievementsState && typeof raw.achievementsState === "object" ? raw.achievementsState : null,
     updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
   };
   return state.player || state.feed || state.inventory ? state : null;

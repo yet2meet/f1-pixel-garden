@@ -4,6 +4,9 @@ const STORAGE = {
   inventory: "f1_pixel_pwa_food_inventory",
   gifts: "f1_pixel_pwa_food_gifts",
   friends: "f1_pixel_pwa_friends",
+  meta: "f1_pixel_pwa_meta",
+  skins: "f1_pixel_pwa_skins",
+  achievements: "f1_pixel_pwa_achievements",
   deviceId: "f1_pixel_pwa_device_id",
   account: "f1_pixel_pwa_account",
   localAccounts: "f1_pixel_pwa_local_accounts",
@@ -17,6 +20,9 @@ const FAVORITE_FEED_BONUS = 8;
 const FAVORITE_GROWTH_BONUS = 4;
 const MAX_FOOD_STACK = 99;
 const WEEKLY_GIFT_LIMIT = 2;
+const LUCKY_WHEEL_LIMIT = 3;
+const DOUBLE_CARD_LIMIT = 10;
+const SKIN_COST = 30;
 const PORTRAIT_EXPRESSIONS = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
 
 const drivers = [
@@ -237,13 +243,104 @@ const foodCatalog = drivers.map((driver, index) => ({
   team: driver.team,
   rarity: index === 0 ? "rare" : "normal",
   color: driver.color,
+  englishName: ["Red Bull Energy Drink", "Banana", "Fresh Salad", "Fried Chicken", "Australian Meat Pie", "Protein Bar", "Italian Energy Pizza", "Spanish Tortilla"][index],
+  nutrition: [
+    ["牛磺酸", "咖啡因", "B 族维生素"],
+    ["钾", "维生素 B6", "碳水化合物"],
+    ["纤维", "维生素", "矿物质"],
+    ["蛋白质", "能量", "B 族维生素"],
+    ["蛋白质", "铁", "碳水化合物"],
+    ["高蛋白", "必需氨基酸", "低糖"],
+    ["碳水化合物", "蛋白质", "番茄红素"],
+    ["蛋白质", "碳水化合物", "脂肪"],
+  ][index],
+  museumStory: [
+    "Red Bull 与车队完全绑定，代表高速、激进和持续能量。每一次排位赛前的能量补给，都像一次把节奏推到极限的仪式。",
+    "香蕉是赛车传奇的轻便补给。它易消化、能快速补能，也象征 Leclerc 在蒙特卡洛街道里的传统与优雅。",
+    "Hamilton 的沙拉是自律和健康哲学。清爽蔬菜帮助长期维持体能，也代表现代车手对环保和身体状态的思考。",
+    "Norris 的炸鸡带着新世代车手的真实感。它不完美但快乐，像迈凯伦橙色车库里轻松又锋利的比赛节奏。",
+    "Piastri 的澳洲牛肉派是家乡味道。烤金派皮和多汁肉馅，连接着澳洲热浪下的卡丁车起点。",
+    "Russell 的蛋白棒代表现代运动营养学。轻便、精准、可控，像他每一次入弯一样讲究效率。",
+    "Antonelli 的意式能量披萨带着年轻车手的学习速度。碳水补给和意大利热情让每一圈都更有冲劲。",
+    "Alonso 的西班牙玉米饼朴素但充满力量。它像老冠军的职业生涯，简洁、耐久、始终有计划。",
+  ][index],
 }));
+
+const wheelRewards = [
+  { id: "growth_1", label: "成长 x1", type: "growth", value: 1, weight: 20 },
+  { id: "growth_2a", label: "成长 x2", type: "growth", value: 2, weight: 15 },
+  { id: "growth_3", label: "成长 x3", type: "growth", value: 3, weight: 10 },
+  { id: "food_1", label: "食物 x1", type: "food", value: 1, weight: 20 },
+  { id: "double_1", label: "加倍卡 x1", type: "double_card", value: 1, weight: 10 },
+  { id: "food_2", label: "食物 x2", type: "food", value: 2, weight: 10 },
+  { id: "growth_2b", label: "成长 x2", type: "growth", value: 2, weight: 10 },
+  { id: "double_2", label: "加倍卡 x2", type: "double_card", value: 2, weight: 5 },
+];
+
+const achievementDefs = [
+  { id: "ach_feed_20", category: "养成", name: "初心者", desc: "累计喂食 20 次", target: 20, reward: 3, metric: "totalFeeds" },
+  { id: "ach_feed_50", category: "养成", name: "养护专家", desc: "累计喂食 50 次", target: 50, reward: 8, metric: "totalFeeds" },
+  { id: "ach_feed_100", category: "养成", name: "贴心管家", desc: "累计喂食 100 次", target: 100, reward: 15, metric: "totalFeeds" },
+  { id: "ach_lucky_3", category: "挑战", name: "幸运车手", desc: "触发幸运时刻 3 次", target: 3, reward: 8, metric: "luckyTriggers" },
+  { id: "ach_food_complete", category: "挑战", name: "美食鉴赏家", desc: "集齐 8 种食物", target: 8, reward: 20, metric: "foodCollected" },
+  { id: "ach_7day_streak", category: "挑战", name: "每日坚持者", desc: "连续 7 天喂食", target: 7, reward: 10, metric: "feedStreak" },
+  { id: "ach_skin_3", category: "收集", name: "造型玩家", desc: "拥有 3 个赛季皮肤", target: 3, reward: 8, metric: "skinsOwned" },
+  { id: "ach_all_milestones", category: "养成", name: "世界冠军之路", desc: "当前车手达到世界冠军", target: 6, reward: 50, metric: "currentLevel" },
+];
+
+const milestoneRewards = [
+  { level: 1, treasures: 0, skin: "默认形象" },
+  { level: 2, treasures: 3 },
+  { level: 3, treasures: 5, skin: "新秀涂装" },
+  { level: 4, treasures: 10, foods: 5 },
+  { level: 5, treasures: 20, skin: "F1 战士" },
+  { level: 6, treasures: 50, skin: "世界冠军" },
+];
+
+const skinCatalog = drivers.map((driver) => ({
+  id: `skin_${driver.id}_monaco_2026_s1`,
+  driverId: driver.id,
+  driverName: driver.name,
+  name: {
+    verstappen: "摩纳哥王子",
+    leclerc: "法拉利红焰",
+    hamilton: "银色闪电",
+    norris: "木瓜夜跑",
+    piastri: "海港冷锋",
+    russell: "银箭几何",
+    antonelli: "新星霓虹",
+    alonso: "翡翠老将",
+  }[driver.id],
+  season: "2026 S1 摩纳哥街道",
+  color: driver.color,
+  rarity: driver.id === "verstappen" || driver.id === "leclerc" ? "rare" : "uncommon",
+  description: `融合蒙特卡洛街道夜景与 ${driver.team} 视觉元素的限定像素涂装。`,
+  cost: SKIN_COST,
+}));
+
+function currentTrainingCamp() {
+  const week = Number(getWeekId().slice(-2));
+  const index = (week - 1) % drivers.length;
+  const driver = drivers[index];
+  return {
+    weekId: getWeekId(),
+    driver,
+    tasks: [
+      { id: "camp_feed", name: "主题周冲刺", desc: `本周喂食 ${driver.name} 20 次`, target: 20, reward: "珍珠 x5" },
+      { id: "camp_food", name: "专属补给", desc: `使用 ${driver.food} 喂食 10 次`, target: 10, reward: "食物 x3 + 珍珠 x3" },
+      { id: "camp_growth", name: "稳定推进", desc: "本周喂食量达到 180", target: 180, reward: "加倍卡 x1" },
+    ],
+  };
+}
 
 const state = {
   view: "home",
   selectedDriverId: "verstappen",
   giftFoodId: "",
   giftQuantity: 1,
+  museumFoodId: "",
+  doubleCardArmed: false,
+  wheel: null,
   playerId: "",
   mood: "idle",
   line: "",
@@ -325,7 +422,7 @@ function removeScopedItem(key) {
 
 function migrateGuestProgressToAccount(account) {
   if (!account) return;
-  [STORAGE.player, STORAGE.feed, STORAGE.inventory, STORAGE.gifts, STORAGE.friends].forEach((key) => {
+  [STORAGE.player, STORAGE.feed, STORAGE.inventory, STORAGE.gifts, STORAGE.friends, STORAGE.meta, STORAGE.skins, STORAGE.achievements].forEach((key) => {
     const accountKey = `${key}_${account.id}`;
     if (!localStorage.getItem(accountKey)) {
       const guestValue = localStorage.getItem(key);
@@ -473,6 +570,59 @@ function saveInventoryState(inventory) {
   writeScopedJson(STORAGE.inventory, inventory);
 }
 
+function getMetaState() {
+  const weekId = getWeekId();
+  const old = readScopedJson(STORAGE.meta) || {};
+  const weekly = old.weekId === weekId ? old.weekly || {} : {};
+  return {
+    weekId,
+    totalFeeds: old.totalFeeds || 0,
+    luckyTriggers: old.luckyTriggers || 0,
+    feedStreak: old.feedStreak || 0,
+    lastFeedDate: old.lastFeedDate || "",
+    doubleCards: Math.min(DOUBLE_CARD_LIMIT, old.doubleCards || 0),
+    weekly: {
+      luckyWheelUsed: weekly.luckyWheelUsed || 0,
+      campFeeds: weekly.campFeeds || 0,
+      campFoodFeeds: weekly.campFoodFeeds || 0,
+      campFeedValue: weekly.campFeedValue || 0,
+      bonusGrowth: weekly.bonusGrowth || 0,
+    },
+    milestones: old.milestones || {},
+    titles: Array.isArray(old.titles) ? old.titles : [],
+    updatedAt: old.updatedAt || Date.now(),
+  };
+}
+
+function saveMetaState(meta) {
+  writeScopedJson(STORAGE.meta, { ...meta, updatedAt: Date.now() });
+}
+
+function getSkinsState() {
+  const old = readScopedJson(STORAGE.skins) || {};
+  return {
+    owned: Array.isArray(old.owned) ? old.owned : [],
+    equipped: old.equipped && typeof old.equipped === "object" ? old.equipped : {},
+    tickets: old.tickets || 0,
+  };
+}
+
+function saveSkinsState(skins) {
+  writeScopedJson(STORAGE.skins, skins);
+}
+
+function getAchievementsState() {
+  const old = readScopedJson(STORAGE.achievements) || {};
+  return {
+    unlocked: old.unlocked && typeof old.unlocked === "object" ? old.unlocked : {},
+    claimedTreasures: old.claimedTreasures || 0,
+  };
+}
+
+function saveAchievementsState(achievements) {
+  writeScopedJson(STORAGE.achievements, achievements);
+}
+
 function getFriendsState() {
   const old = readScopedJson(STORAGE.friends) || {};
   return {
@@ -559,6 +709,9 @@ function publicPlayerSnapshot(player = getPlayer(), feed = getFeedState()) {
     inventory: getInventoryState(),
     feed,
     friends: getFriendsState(),
+    meta: getMetaState(),
+    skins: getSkinsState(),
+    achievementsState: getAchievementsState(),
     updatedAt: Date.now(),
   };
 }
@@ -677,6 +830,9 @@ function resetAll() {
   removeScopedItem(STORAGE.feed);
   removeScopedItem(STORAGE.inventory);
   removeScopedItem(STORAGE.gifts);
+  removeScopedItem(STORAGE.meta);
+  removeScopedItem(STORAGE.skins);
+  removeScopedItem(STORAGE.achievements);
   state.view = "select";
   state.line = "";
   showToast("本地数据已清空");
@@ -697,6 +853,9 @@ async function loadRemoteGameState() {
     if (data.gameState.inventory) writeScopedJson(STORAGE.inventory, data.gameState.inventory);
     if (data.gameState.gifts) writeScopedJson(STORAGE.gifts, data.gameState.gifts);
     if (data.gameState.friends) writeScopedJson(STORAGE.friends, data.gameState.friends);
+    if (data.gameState.meta) writeScopedJson(STORAGE.meta, data.gameState.meta);
+    if (data.gameState.skins) writeScopedJson(STORAGE.skins, data.gameState.skins);
+    if (data.gameState.achievementsState) writeScopedJson(STORAGE.achievements, data.gameState.achievementsState);
   } catch {
     // Local account-scoped progress remains authoritative if cloud state is unavailable.
   }
@@ -717,6 +876,9 @@ async function saveRemoteGameState() {
         inventory: getInventoryState(),
         gifts: getGiftState(),
         friends: getFriendsState(),
+        meta: getMetaState(),
+        skins: getSkinsState(),
+        achievementsState: getAchievementsState(),
         updatedAt: Date.now(),
       },
     });
@@ -763,6 +925,129 @@ function currentModel() {
   };
 }
 
+function getLevelIndex(growth) {
+  return levels.findIndex((level) => level.name === getLevel(growth).name) + 1;
+}
+
+function addTreasures(amount) {
+  const player = getPlayer();
+  if (!player || amount <= 0) return;
+  savePlayer({ ...player, treasures: (player.treasures || 0) + amount });
+}
+
+function awardRandomFood(quantity = 1) {
+  Array.from({ length: quantity }).forEach(() => {
+    const food = foodCatalog[Math.floor(Math.random() * foodCatalog.length)];
+    addFood(food.id, 1);
+  });
+}
+
+function updateFeedStreak(meta) {
+  const today = todayKey();
+  const last = meta.lastFeedDate;
+  if (last !== today) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+    meta.feedStreak = last === yesterdayKey ? (meta.feedStreak || 0) + 1 : 1;
+    meta.lastFeedDate = today;
+  }
+}
+
+function checkMilestones(beforeGrowth, afterGrowth, driverId) {
+  const meta = getMetaState();
+  const player = getPlayer();
+  if (!player) return;
+  const beforeLevel = getLevelIndex(beforeGrowth);
+  const afterLevel = getLevelIndex(afterGrowth);
+  if (afterLevel <= beforeLevel && meta.milestones[driverId]) return;
+  const driverMilestones = meta.milestones[driverId] || [];
+  for (let level = 1; level <= afterLevel; level += 1) {
+    if (driverMilestones.some((item) => item.level === level)) continue;
+    const reward = milestoneRewards[level - 1] || {};
+    driverMilestones.push({
+      level,
+      levelName: levels[level - 1]?.name || "里程碑",
+      reachedAt: todayKey(),
+      growthValue: afterGrowth,
+      treasureReward: reward.treasures || 0,
+      unlockedSkin: reward.skin || "",
+    });
+    if (reward.treasures) addTreasures(reward.treasures);
+    if (reward.foods) awardRandomFood(reward.foods);
+  }
+  meta.milestones[driverId] = driverMilestones;
+  saveMetaState(meta);
+}
+
+function achievementProgress(def) {
+  const meta = getMetaState();
+  const player = getPlayer();
+  const inventory = getInventoryState();
+  const skins = getSkinsState();
+  if (def.metric === "totalFeeds") return meta.totalFeeds || 0;
+  if (def.metric === "luckyTriggers") return meta.luckyTriggers || 0;
+  if (def.metric === "foodCollected") return collectionCount(inventory);
+  if (def.metric === "feedStreak") return meta.feedStreak || 0;
+  if (def.metric === "skinsOwned") return skins.owned.length;
+  if (def.metric === "currentLevel") return player ? getLevelIndex(player.growth || 0) : 0;
+  return 0;
+}
+
+function checkAchievements() {
+  const stateAchs = getAchievementsState();
+  let changed = false;
+  achievementDefs.forEach((def) => {
+    const progress = achievementProgress(def);
+    if (progress >= def.target && !stateAchs.unlocked[def.id]) {
+      stateAchs.unlocked[def.id] = { unlockedAt: Date.now(), progress };
+      stateAchs.claimedTreasures += def.reward;
+      addTreasures(def.reward);
+      changed = true;
+      showToast(`成就解锁：${def.name} +${def.reward} 珍珠`);
+    }
+  });
+  if (changed) saveAchievementsState(stateAchs);
+}
+
+function shouldTriggerWheel(meta) {
+  return meta.weekly.luckyWheelUsed < LUCKY_WHEEL_LIMIT && Math.random() < 0.05;
+}
+
+function pickWheelReward() {
+  const total = wheelRewards.reduce((sum, reward) => sum + reward.weight, 0);
+  let roll = Math.random() * total;
+  return wheelRewards.find((reward) => {
+    roll -= reward.weight;
+    return roll <= 0;
+  }) || wheelRewards[0];
+}
+
+function settleWheelReward(reward, baseGrowth) {
+  const player = getPlayer();
+  const meta = getMetaState();
+  if (!player) return;
+  if (reward.type === "growth") {
+    const gain = baseGrowth * reward.value;
+    const beforeGrowth = player.growth || 0;
+    const afterGrowth = beforeGrowth + gain;
+    savePlayer({ ...player, growth: afterGrowth });
+    checkMilestones(beforeGrowth, afterGrowth, player.driverId);
+    state.wheel.resultText = `获得 +${gain} 成长值`;
+  } else if (reward.type === "food") {
+    awardRandomFood(reward.value);
+    state.wheel.resultText = `获得随机食物 x${reward.value}`;
+  } else if (reward.type === "double_card") {
+    meta.doubleCards = Math.min(DOUBLE_CARD_LIMIT, (meta.doubleCards || 0) + reward.value);
+    saveMetaState(meta);
+    state.wheel.resultText = `获得加倍卡 x${reward.value}`;
+  }
+  meta.luckyTriggers += 1;
+  saveMetaState(meta);
+  checkAchievements();
+  saveRemoteGameState();
+}
+
 function feedDriver() {
   const player = getPlayer();
   if (!player) {
@@ -776,6 +1061,10 @@ function feedDriver() {
   const favoriteQty = inventory.items[player.driverId] || 0;
   const useFavoriteFood = favoriteQty > 0;
   if (!useFavoriteFood && feed.stock <= 0) return showToast("今天的补给和专属食物都不足");
+  const meta = getMetaState();
+  const camp = currentTrainingCamp();
+  const inCamp = player.driverId === camp.driver.id;
+  const useDoubleCard = state.doubleCardArmed && meta.doubleCards > 0;
   if (useFavoriteFood) {
     inventory.items[player.driverId] -= 1;
     saveInventoryState(inventory);
@@ -785,19 +1074,41 @@ function feedDriver() {
 
   const lucky = Math.random() < 0.12;
   const baseValue = FEED_VALUE + (useFavoriteFood ? FAVORITE_FEED_BONUS : 0);
-  const baseGrowth = GROWTH_PER_FEED + (useFavoriteFood ? FAVORITE_GROWTH_BONUS : 0);
+  let baseGrowth = GROWTH_PER_FEED + (useFavoriteFood ? FAVORITE_GROWTH_BONUS : 0);
+  const campBonus = inCamp ? Math.ceil(baseGrowth * 0.2) : 0;
+  baseGrowth += campBonus;
   const value = lucky ? baseValue * 2 : baseValue;
-  const growthValue = lucky ? baseGrowth * 2 : baseGrowth;
+  let growthValue = lucky ? baseGrowth * 2 : baseGrowth;
+  if (useDoubleCard) {
+    growthValue *= 2;
+    meta.doubleCards -= 1;
+    state.doubleCardArmed = false;
+  }
   feed.usedFeeds += 1;
   feed.weeklyFeed += value;
-  feed.logs.unshift({ id: `${Date.now()}`, time: Date.now(), value, growthValue, lucky, foodId: useFavoriteFood ? player.driverId : "daily-stock" });
+  feed.logs.unshift({ id: `${Date.now()}`, time: Date.now(), value, growthValue, lucky, campBonus, doubleCard: useDoubleCard, foodId: useFavoriteFood ? player.driverId : "daily-stock" });
   saveFeedState(feed);
-  savePlayer({ ...player, growth: (player.growth || 0) + growthValue });
+  const beforeGrowth = player.growth || 0;
+  const afterGrowth = beforeGrowth + growthValue;
+  savePlayer({ ...player, growth: afterGrowth });
+  meta.totalFeeds += 1;
+  meta.weekly.campFeedValue += value;
+  updateFeedStreak(meta);
+  if (inCamp) {
+    meta.weekly.campFeeds += 1;
+    if (useFavoriteFood) meta.weekly.campFoodFeeds += 1;
+    meta.weekly.bonusGrowth += campBonus;
+  }
+  const triggerWheel = shouldTriggerWheel(meta);
+  if (triggerWheel) meta.weekly.luckyWheelUsed += 1;
+  saveMetaState(meta);
+  checkMilestones(beforeGrowth, afterGrowth, player.driverId);
+  checkAchievements();
   saveRemoteGameState();
   syncRemote(lucky ? "luckyFeed" : "feed").finally(() => refreshLeaderboard({ silent: true }));
 
   state.mood = "eat";
-  state.line = useFavoriteFood ? "专属食物命中节奏，成长加速。" : lucky ? "完美补给！这口直接双倍加速。" : randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
+  state.line = useDoubleCard ? "加倍卡启动，本次成长翻倍。" : inCamp ? `训练营加成生效：+${campBonus} 成长。` : useFavoriteFood ? "专属食物命中节奏，成长加速。" : lucky ? "完美补给！这口直接双倍加速。" : randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
   state.isFeeding = true;
   state.floatingFood = true;
   state.feedDelta = value;
@@ -821,6 +1132,10 @@ function feedDriver() {
 
   window.setTimeout(() => {
     state.line = "";
+    if (triggerWheel) {
+      state.wheel = { reward: pickWheelReward(), clicks: 0, startedAt: Date.now(), settled: false, resultText: "" };
+      render();
+    }
     render();
   }, 2500);
 }
@@ -860,6 +1175,7 @@ function render() {
     ${renderHeader()}
     ${renderView()}
     ${renderTabbar()}
+    ${state.wheel ? renderWheelModal() : ""}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ""}
   `;
   bindEvents();
@@ -883,6 +1199,9 @@ function renderHeader() {
 function renderView() {
   if (state.view === "select") return renderSelect();
   if (state.view === "warehouse") return renderWarehouse();
+  if (state.view === "training") return renderTrainingCamp();
+  if (state.view === "museum") return renderFoodMuseum();
+  if (state.view === "skins") return renderSkins();
   if (state.view === "garage") return renderGarage();
   if (state.view === "leaderboard") return renderLeaderboard();
   if (state.view === "achievements") return renderAchievements();
@@ -904,6 +1223,10 @@ function renderHome() {
   const { player, feed, driver, level, nextLevel } = currentModel();
   if (!player) return renderSelect();
   const inventory = getInventoryState();
+  const meta = getMetaState();
+  const camp = currentTrainingCamp();
+  const inCamp = driver.id === camp.driver.id;
+  const equippedSkin = currentSkinName(driver.id);
   const favoriteQty = inventory.items[driver.id] || 0;
   const remain = Math.max(0, DAILY_LIMIT - feed.usedFeeds);
   const growth = player.growth || 0;
@@ -914,12 +1237,19 @@ function renderHome() {
   const disabled = remain <= 0 || (feed.stock <= 0 && favoriteQty <= 0) || state.isFeeding;
   return `
     <main class="home-main">
+      <section class="event-strip" style="--driver:${camp.driver.color}">
+        <div>
+          <strong>本周训练营：${camp.driver.name}</strong>
+          <small>${camp.driver.team} · ${inCamp ? "+20% 成长加成已生效" : "绑定焦点车手可获得 +20% 成长"}</small>
+        </div>
+        <button class="mini-btn" data-view="training">任务</button>
+      </section>
       <section class="hero-stage ${state.luckyFlash ? "lucky" : ""}" style="--driver:${driver.color}">
         <div class="track-lines"></div>
         <div class="driver-card">
           <div class="driver-meta">
             <span>#${driver.number} ${driver.team}</span>
-            <span>${level.name}</span>
+            <span>${level.name}${equippedSkin ? ` · ${equippedSkin}` : ""}</span>
           </div>
           ${renderSideDriverName(driver.name)}
           <button class="portrait-wrap ${state.isFeeding ? "is-feeding" : ""}" data-action="talk" aria-label="和车手互动">
@@ -955,10 +1285,16 @@ function renderHome() {
           <span class="value">${driver.foodEmoji} x${favoriteQty}</span>
           <small>${favoriteQty > 0 ? "本次优先消耗专属食物，喂食和成长都有加成。" : "没有专属食物时使用每日补给。"}</small>
         </div>
+        <div class="stat wide-stat">
+          <span class="label">待使用道具</span>
+          <span class="value">加倍卡 x${meta.doubleCards || 0}</span>
+          <small>${meta.doubleCards > 0 ? `点击${state.doubleCardArmed ? "取消" : "激活"}，下一次喂食成长 x2。` : "幸运转盘可获得加倍卡。"}</small>
+        </div>
       </section>
 
       <section class="actions">
         <button class="btn" data-action="feed" ${disabled ? "disabled" : ""}>${favoriteQty > 0 ? "喂食库存" : "喂食补给"} ${driver.foodEmoji} ${driver.food}</button>
+        <button class="btn secondary" data-action="toggleDoubleCard" ${meta.doubleCards > 0 ? "" : "disabled"}>${state.doubleCardArmed ? "取消加倍卡" : "激活加倍卡"}</button>
         <button class="btn secondary" data-view="select">更换车手</button>
       </section>
     </main>
@@ -987,6 +1323,12 @@ function renderSelect() {
       </section>
     </main>
   `;
+}
+
+function currentSkinName(driverId) {
+  const skins = getSkinsState();
+  const skinId = skins.equipped[driverId];
+  return skinCatalog.find((skin) => skin.id === skinId)?.name || "";
 }
 
 function renderWarehouse() {
@@ -1108,6 +1450,183 @@ function confirmGift() {
   render();
 }
 
+function renderTrainingCamp() {
+  const { player } = currentModel();
+  if (!player) return renderSelect();
+  const meta = getMetaState();
+  const camp = currentTrainingCamp();
+  const inCamp = player.driverId === camp.driver.id;
+  const progress = [meta.weekly.campFeeds, meta.weekly.campFoodFeeds, meta.weekly.campFeedValue];
+  const targets = [20, 10, 180];
+  return `
+    <main class="training-main">
+      <section class="panel spotlight-panel" style="--driver:${camp.driver.color}">
+        <h2>本周训练营</h2>
+        <div class="spotlight-driver">
+          <img src="${portraitSrc(camp.driver, "celebrate")}" alt="${camp.driver.name}" />
+          <div>
+            <strong>${camp.driver.name}</strong>
+            <small>${camp.driver.team} · ${camp.weekId}</small>
+            <p class="label">${inCamp ? "你正在享受 +20% 成长加成。" : "本周焦点车手玩家可获得 +20% 成长加成。"}</p>
+          </div>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>周任务</h2>
+        <div class="task-list">
+          ${camp.tasks.map((task, index) => {
+            const value = Math.min(targets[index], progress[index] || 0);
+            const done = value >= targets[index];
+            return `
+              <article class="task-card ${done ? "done" : ""}">
+                <strong>${done ? "✓" : "·"} ${task.name}</strong>
+                <small>${task.desc}</small>
+                <div class="progress" style="--progress:${Math.round((value / targets[index]) * 100)}%"><span></span></div>
+                <small>进度 ${value}/${targets[index]} · 奖励 ${task.reward}</small>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      </section>
+      <section class="panel">
+        <h2>活动统计</h2>
+        <p>本周训练营额外成长：${meta.weekly.bonusGrowth || 0}</p>
+        <p>幸运时刻：${meta.weekly.luckyWheelUsed || 0}/${LUCKY_WHEEL_LIMIT}</p>
+      </section>
+    </main>
+  `;
+}
+
+function renderFoodMuseum() {
+  const player = getPlayer();
+  if (!player) return renderSelect();
+  const inventory = getInventoryState();
+  const selected = state.museumFoodId ? findFood(state.museumFoodId) : null;
+  const collected = collectionCount(inventory);
+  if (selected) return renderFoodDetail(selected, inventory);
+  return `
+    <main class="museum-main">
+      <section class="panel museum-hero">
+        <h2>食物博物馆</h2>
+        <p class="label">F1 车手的能量秘密 · 已展览 ${collected}/8</p>
+        <div class="progress collection-progress" style="--progress:${Math.round((collected / foodCatalog.length) * 100)}%"><span></span></div>
+        ${collected >= 8 ? `<p>美食大师之路已开启，称号「美食品鉴家」可在成就中查看。</p>` : `<p class="label">收集食物即可点亮展览卡片。</p>`}
+      </section>
+      <section class="museum-grid">
+        ${foodCatalog.map((food) => {
+          const owned = (inventory.items[food.id] || 0) > 0;
+          return `
+            <button class="museum-card ${owned ? "" : "locked"}" style="--driver:${food.color}" data-museum="${food.id}">
+              <span class="food-icon">${food.emoji}</span>
+              <strong>${food.name}</strong>
+              <small>${food.englishName}</small>
+              <small>${food.driverName}</small>
+              <span>${owned ? "已拥有" : "未拥有"}</span>
+            </button>
+          `;
+        }).join("")}
+      </section>
+    </main>
+  `;
+}
+
+function renderFoodDetail(food, inventory) {
+  const qty = inventory.items[food.id] || 0;
+  return `
+    <main class="museum-main">
+      <section class="panel museum-detail" style="--driver:${food.color}">
+        <button class="mini-btn" data-action="museumBack">返回展览区</button>
+        <div class="detail-food">${food.emoji}</div>
+        <h2>${food.name}</h2>
+        <p class="label">${food.englishName} · ${food.driverName} · ${food.team}</p>
+        <h3>营养价值</h3>
+        <p>${food.nutrition.join(" / ")}</p>
+        <h3>F1 故事</h3>
+        <p>${food.museumStory}</p>
+        <h3>你的进展</h3>
+        <p>当前持有：${qty} 个</p>
+      </section>
+    </main>
+  `;
+}
+
+function renderSkins() {
+  const player = getPlayer();
+  if (!player) return renderSelect();
+  const skins = getSkinsState();
+  const ownedCount = skins.owned.length;
+  return `
+    <main class="skins-main">
+      <section class="panel">
+        <h2>赛季皮肤商城</h2>
+        <p class="label">2026 S1「摩纳哥街道」 · 珍珠 ${player.treasures || 0} · 已拥有 ${ownedCount}/${skinCatalog.length}</p>
+        <p class="label">排行兑换券机制需要多人后端，当前先开放珍珠购买和装备。</p>
+      </section>
+      <section class="skin-grid">
+        ${skinCatalog.map((skin) => {
+          const owned = skins.owned.includes(skin.id);
+          const equipped = skins.equipped[skin.driverId] === skin.id;
+          return `
+            <article class="skin-card ${owned ? "owned" : ""}" style="--driver:${skin.color}">
+              <div class="skin-preview">${getDriver(skin.driverId).badge}</div>
+              <div>
+                <strong>${skin.name}</strong>
+                <small>${skin.driverName} · ${skin.season}</small>
+                <small>${skin.description}</small>
+              </div>
+              <button class="mini-btn" data-skin="${skin.id}" data-action="${owned ? "equipSkin" : "buySkin"}" ${!owned && (player.treasures || 0) < skin.cost ? "disabled" : ""}>${owned ? (equipped ? "已装备" : "装备") : `购买 ${skin.cost}`}</button>
+            </article>
+          `;
+        }).join("")}
+      </section>
+    </main>
+  `;
+}
+
+function renderWheelModal() {
+  const wheel = state.wheel;
+  return `
+    <div class="modal-backdrop">
+      <section class="wheel-modal panel">
+        <h2>幸运时刻</h2>
+        <div class="wheel-board">
+          ${wheelRewards.map((reward, index) => `<button class="wheel-slice ${wheel.reward.id === reward.id && wheel.settled ? "winner" : ""}" data-action="wheelTap" style="--i:${index}">${reward.label}</button>`).join("")}
+        </div>
+        <p class="label">快速点击转盘，点击次数会让它多转几格。</p>
+        <p>点击次数：${wheel.clicks}</p>
+        ${wheel.settled ? `<strong>${wheel.resultText}</strong>` : `<button class="btn" data-action="settleWheel">停止并领奖</button>`}
+        ${wheel.settled ? `<button class="btn secondary" data-action="closeWheel">收下奖励</button>` : ""}
+      </section>
+    </div>
+  `;
+}
+
+function buySkin(skinId) {
+  const player = getPlayer();
+  const skin = skinCatalog.find((item) => item.id === skinId);
+  if (!player || !skin) return;
+  if ((player.treasures || 0) < skin.cost) return showToast("珍珠不足");
+  const skins = getSkinsState();
+  if (skins.owned.includes(skin.id)) return;
+  skins.owned.push(skin.id);
+  saveSkinsState(skins);
+  savePlayer({ ...player, treasures: (player.treasures || 0) - skin.cost });
+  checkAchievements();
+  showToast(`已购买皮肤：${skin.name}`);
+  render();
+}
+
+function equipSkin(skinId) {
+  const skin = skinCatalog.find((item) => item.id === skinId);
+  if (!skin) return;
+  const skins = getSkinsState();
+  if (!skins.owned.includes(skin.id)) return;
+  skins.equipped[skin.driverId] = skin.id;
+  saveSkinsState(skins);
+  showToast(`已装备：${skin.name}`);
+  render();
+}
+
 function redeemCollection() {
   const player = getPlayer();
   const inventory = getInventoryState();
@@ -1186,10 +1705,33 @@ function renderAchievements() {
   const { player, feed, level, nextLevel } = currentModel();
   const growth = player ? player.growth || 0 : 0;
   const hasFoodie = player && Array.isArray(player.achievements) && player.achievements.includes("gold_foodie");
+  const achievements = getAchievementsState();
+  const meta = getMetaState();
+  const driverMilestones = player ? meta.milestones[player.driverId] || [] : [];
+  const unlocked = achievementDefs.filter((def) => achievements.unlocked[def.id]).length;
   return `
     <main class="achievements-main">
       <section class="panel">
-        <h2>成就档案</h2>
+        <h2>成就中心</h2>
+        <p class="label">已解锁 ${unlocked}/${achievementDefs.length} · 成就珍珠 ${achievements.claimedTreasures || 0}</p>
+        <div class="progress" style="--progress:${Math.round((unlocked / achievementDefs.length) * 100)}%"><span></span></div>
+      </section>
+      <section class="achievement-grid">
+        ${achievementDefs.map((def) => {
+          const progress = Math.min(def.target, achievementProgress(def));
+          const done = Boolean(achievements.unlocked[def.id]);
+          return `
+            <article class="achievement-card ${done ? "done" : ""}">
+              <strong>${done ? "✓" : "○"} ${def.name}</strong>
+              <small>${def.category} · ${def.desc}</small>
+              <div class="progress" style="--progress:${Math.round((progress / def.target) * 100)}%"><span></span></div>
+              <small>进度 ${progress}/${def.target} · 奖励 珍珠 x${def.reward}</small>
+            </article>
+          `;
+        }).join("")}
+      </section>
+      <section class="panel">
+        <h2>成长档案</h2>
         <p>当前等级：<strong>${level.name}</strong></p>
         <p>成长值：${growth}</p>
         <p>本周喂食：${feed.weeklyFeed || 0}</p>
@@ -1198,15 +1740,17 @@ function renderAchievements() {
         <p class="label">${nextLevel.minGrowth === level.minGrowth ? "已经抵达最高等级。" : `距离 ${nextLevel.name} 还差 ${nextLevel.minGrowth - growth} 成长值。`}</p>
       </section>
       <section class="panel">
-        <h2>等级路线</h2>
+        <h2>里程碑相册</h2>
         <div class="list">
-          ${levels.map((item) => `
+          ${levels.map((item, index) => {
+            const milestone = driverMilestones.find((entry) => entry.level === index + 1);
+            return `
             <div class="list-row">
-              <span>${growth >= item.minGrowth ? "✓" : "·"}</span>
-              <div><strong>${item.name}</strong><small>成长值达到 ${item.minGrowth}</small></div>
+              <span>${milestone ? "✓" : "·"}</span>
+              <div><strong>Lv.${index + 1} ${item.name}</strong><small>${milestone ? `解锁于 ${milestone.reachedAt} · 成长值 ${milestone.growthValue}` : `成长值达到 ${item.minGrowth}`}</small></div>
               <span>${item.minGrowth}</span>
             </div>
-          `).join("")}
+          `; }).join("")}
         </div>
       </section>
     </main>
@@ -1254,6 +1798,9 @@ function renderTabbar() {
   const tabs = [
     ["home", "养成"],
     ["warehouse", "仓库"],
+    ["training", "活动"],
+    ["museum", "博物馆"],
+    ["skins", "皮肤"],
     ["leaderboard", "排行"],
     ["garage", "图鉴"],
     ["achievements", "成就"],
@@ -1288,11 +1835,34 @@ function bindEvents() {
       if (action === "feed") feedDriver();
       if (action === "talk") talkToDriver();
       if (action === "reset") resetAll();
+      if (action === "toggleDoubleCard") {
+        state.doubleCardArmed = !state.doubleCardArmed;
+        render();
+      }
       if (action === "refreshLeaderboard") refreshLeaderboard({ silent: false });
       if (action === "registerAccount") authenticateAccount("register");
       if (action === "loginAccount") authenticateAccount("login");
       if (action === "logoutAccount") logoutAccount();
       if (action === "redeemCollection") redeemCollection();
+      if (action === "museumBack") {
+        state.museumFoodId = "";
+        render();
+      }
+      if (action === "buySkin") buySkin(node.dataset.skin);
+      if (action === "equipSkin") equipSkin(node.dataset.skin);
+      if (action === "wheelTap" && state.wheel && !state.wheel.settled) {
+        state.wheel.clicks += 1;
+        render();
+      }
+      if (action === "settleWheel" && state.wheel && !state.wheel.settled) {
+        state.wheel.settled = true;
+        settleWheelReward(state.wheel.reward, GROWTH_PER_FEED + state.wheel.clicks);
+        render();
+      }
+      if (action === "closeWheel") {
+        state.wheel = null;
+        render();
+      }
       if (action === "confirmGift") confirmGift();
       if (action === "cancelGift") {
         state.giftFoodId = "";
@@ -1307,6 +1877,12 @@ function bindEvents() {
   app.querySelectorAll("[data-gift-qty]").forEach((node) => {
     node.addEventListener("click", () => {
       state.giftQuantity = Math.max(1, Math.min(5, state.giftQuantity + Number(node.dataset.giftQty)));
+      render();
+    });
+  });
+  app.querySelectorAll("[data-museum]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.museumFoodId = node.dataset.museum;
       render();
     });
   });
