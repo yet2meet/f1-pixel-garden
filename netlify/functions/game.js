@@ -9,7 +9,7 @@ const CORS_HEADERS = {
 };
 
 const MAX_RANKINGS = 50;
-const VALID_ACTIONS = new Set(["syncPlayer", "leaderboard", "resetPlayer", "registerAccount", "loginAccount"]);
+const VALID_ACTIONS = new Set(["syncPlayer", "leaderboard", "resetPlayer", "registerAccount", "loginAccount", "loadGameState", "saveGameState"]);
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return json(204, {});
@@ -91,6 +91,30 @@ export async function handler(event) {
     return json(200, { ok: true, storage: "blob", player });
   }
 
+  if (body.action === "loadGameState") {
+    const playerId = safeId(body.playerId);
+    if (!playerId) return json(400, { error: "invalid_player" });
+    if (!store) return json(200, { ok: true, storage: "volatile", gameState: null });
+    if (!(await canWritePlayer(store, playerId, body.accountToken))) {
+      return json(401, { ok: false, error: "unauthorized_player" });
+    }
+    const gameState = await store.get(`game-states/${playerId}`, { type: "json" }).catch(() => null);
+    return json(200, { ok: true, storage: "blob", gameState: normalizeGameState(gameState) });
+  }
+
+  if (body.action === "saveGameState") {
+    const playerId = safeId(body.playerId);
+    if (!playerId) return json(400, { error: "invalid_player" });
+    if (!store) return json(200, { ok: true, storage: "volatile" });
+    if (!(await canWritePlayer(store, playerId, body.accountToken))) {
+      return json(401, { ok: false, error: "unauthorized_player" });
+    }
+    const gameState = normalizeGameState(body.gameState);
+    if (!gameState) return json(400, { ok: false, error: "invalid_game_state" });
+    await store.setJSON(`game-states/${playerId}`, { ...gameState, updatedAt: Date.now() });
+    return json(200, { ok: true, storage: "blob", gameState });
+  }
+
   if (body.action === "resetPlayer") {
     const playerId = safeId(body.playerId);
     const weekId = safeWeekId(body.weekId);
@@ -167,6 +191,19 @@ function normalizePlayer(raw) {
     usedFeeds: clampNumber(raw.usedFeeds, 0, 50),
     updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
   };
+}
+
+function normalizeGameState(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const state = {
+    player: raw.player && typeof raw.player === "object" ? raw.player : null,
+    feed: raw.feed && typeof raw.feed === "object" ? raw.feed : null,
+    inventory: raw.inventory && typeof raw.inventory === "object" ? raw.inventory : null,
+    gifts: raw.gifts && typeof raw.gifts === "object" ? raw.gifts : null,
+    friends: raw.friends && typeof raw.friends === "object" ? raw.friends : null,
+    updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+  };
+  return state.player || state.feed || state.inventory ? state : null;
 }
 
 function normalizeCredentials(raw) {

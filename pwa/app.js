@@ -3,6 +3,7 @@ const STORAGE = {
   feed: "f1_pixel_pwa_feed",
   inventory: "f1_pixel_pwa_food_inventory",
   gifts: "f1_pixel_pwa_food_gifts",
+  friends: "f1_pixel_pwa_friends",
   deviceId: "f1_pixel_pwa_device_id",
   account: "f1_pixel_pwa_account",
 };
@@ -237,12 +238,6 @@ const foodCatalog = drivers.map((driver, index) => ({
   color: driver.color,
 }));
 
-const friend = {
-  id: "friend-rival",
-  name: "Charles 车库",
-  rank: "#16",
-};
-
 const state = {
   view: "home",
   selectedDriverId: "verstappen",
@@ -309,6 +304,35 @@ function writeJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function scopedKey(key) {
+  const account = readJson(STORAGE.account);
+  if (!account || key === STORAGE.account || key === STORAGE.deviceId) return key;
+  return `${key}_${account.id}`;
+}
+
+function readScopedJson(key) {
+  return readJson(scopedKey(key));
+}
+
+function writeScopedJson(key, value) {
+  writeJson(scopedKey(key), value);
+}
+
+function removeScopedItem(key) {
+  localStorage.removeItem(scopedKey(key));
+}
+
+function migrateGuestProgressToAccount(account) {
+  if (!account) return;
+  [STORAGE.player, STORAGE.feed, STORAGE.inventory, STORAGE.gifts, STORAGE.friends].forEach((key) => {
+    const accountKey = `${key}_${account.id}`;
+    if (!localStorage.getItem(accountKey)) {
+      const guestValue = localStorage.getItem(key);
+      if (guestValue) localStorage.setItem(accountKey, guestValue);
+    }
+  });
+}
+
 function getDriver(id) {
   return drivers.find((driver) => driver.id === id) || drivers[0];
 }
@@ -322,7 +346,7 @@ function getNextLevel(growth) {
 }
 
 function getPlayer() {
-  const player = readJson(STORAGE.player);
+  const player = readScopedJson(STORAGE.player);
   if (!player) return null;
   return {
     ...player,
@@ -332,7 +356,7 @@ function getPlayer() {
 }
 
 function savePlayer(player) {
-  writeJson(STORAGE.player, {
+  writeScopedJson(STORAGE.player, {
     ...player,
     treasures: player.treasures || 0,
     achievements: Array.isArray(player.achievements) ? player.achievements : [],
@@ -347,12 +371,13 @@ function getAccount() {
 function saveAccount(account) {
   writeJson(STORAGE.account, account);
   state.playerId = account.id;
+  migrateGuestProgressToAccount(account);
 }
 
 function getFeedState() {
   const today = todayKey();
   const weekId = getWeekId();
-  const old = readJson(STORAGE.feed) || {};
+  const old = readScopedJson(STORAGE.feed) || {};
   if (old.today !== today || old.weekId !== weekId) {
     return {
       today,
@@ -367,7 +392,7 @@ function getFeedState() {
 }
 
 function saveFeedState(feed) {
-  writeJson(STORAGE.feed, feed);
+  writeScopedJson(STORAGE.feed, feed);
 }
 
 function emptyInventory() {
@@ -378,7 +403,7 @@ function emptyInventory() {
 }
 
 function getInventoryState() {
-  const old = readJson(STORAGE.inventory) || {};
+  const old = readScopedJson(STORAGE.inventory) || {};
   const items = { ...emptyInventory(), ...(old.items || old) };
   foodCatalog.forEach((food) => {
     items[food.id] = Math.max(0, Math.min(MAX_FOOD_STACK, Number(items[food.id]) || 0));
@@ -390,12 +415,19 @@ function getInventoryState() {
 }
 
 function saveInventoryState(inventory) {
-  writeJson(STORAGE.inventory, inventory);
+  writeScopedJson(STORAGE.inventory, inventory);
+}
+
+function getFriendsState() {
+  const old = readScopedJson(STORAGE.friends) || {};
+  return {
+    friends: Array.isArray(old.friends) ? old.friends : [],
+  };
 }
 
 function getGiftState() {
   const weekId = getWeekId();
-  const old = readJson(STORAGE.gifts) || {};
+  const old = readScopedJson(STORAGE.gifts) || {};
   return {
     weekId,
     sentThisWeek: old.weekId === weekId ? old.sentThisWeek || 0 : 0,
@@ -404,7 +436,7 @@ function getGiftState() {
 }
 
 function saveGiftState(gifts) {
-  writeJson(STORAGE.gifts, gifts);
+  writeScopedJson(STORAGE.gifts, gifts);
 }
 
 function findFood(foodId) {
@@ -467,6 +499,11 @@ function publicPlayerSnapshot(player = getPlayer(), feed = getFeedState()) {
     weeklyFeed: feed.weeklyFeed || 0,
     weekId: feed.weekId || getWeekId(),
     usedFeeds: feed.usedFeeds || 0,
+    treasures: player.treasures || 0,
+    achievements: Array.isArray(player.achievements) ? player.achievements : [],
+    inventory: getInventoryState(),
+    feed,
+    friends: getFriendsState(),
     updatedAt: Date.now(),
   };
 }
@@ -523,6 +560,7 @@ async function authenticateAccount(mode) {
       nickName,
     });
     saveAccount(data.account);
+    await loadRemoteGameState();
     const player = getPlayer();
     if (player) savePlayer({ ...player, nickName: data.account.nickName });
     state.backend = data.storage === "blob" ? "online" : "offline";
@@ -543,14 +581,14 @@ async function authenticateAccount(mode) {
 function logoutAccount() {
   localStorage.removeItem(STORAGE.account);
   state.playerId = "";
-  showToast("已退出账号，本地进度仍保留");
+  showToast("已退出账号，账号存档已保留");
   render();
 }
 
 function bootstrapBackend() {
   const account = getAccount();
   if (account) state.playerId = account.id;
-  syncRemote("boot").finally(() => refreshLeaderboard({ silent: true }));
+  loadRemoteGameState().finally(() => syncRemote("boot").finally(() => refreshLeaderboard({ silent: true })));
 }
 
 function bindDriver(driverId) {
@@ -570,7 +608,7 @@ function bindDriver(driverId) {
     updatedAt: Date.now(),
   };
   savePlayer(player);
-  if (!old || old.driverId !== driver.id) localStorage.removeItem(STORAGE.feed);
+  if (!old || old.driverId !== driver.id) removeScopedItem(STORAGE.feed);
   state.view = "home";
   showToast(`已绑定 ${driver.name}`);
   claimDailyFoodReward();
@@ -579,10 +617,10 @@ function bindDriver(driverId) {
 }
 
 function resetAll() {
-  localStorage.removeItem(STORAGE.player);
-  localStorage.removeItem(STORAGE.feed);
-  localStorage.removeItem(STORAGE.inventory);
-  localStorage.removeItem(STORAGE.gifts);
+  removeScopedItem(STORAGE.player);
+  removeScopedItem(STORAGE.feed);
+  removeScopedItem(STORAGE.inventory);
+  removeScopedItem(STORAGE.gifts);
   state.view = "select";
   state.line = "";
   showToast("本地数据已清空");
@@ -590,6 +628,45 @@ function resetAll() {
   const account = getAccount();
   callGameApi({ action: "resetPlayer", playerId: ensurePlayerId(), weekId: getWeekId(), accountToken: account?.authToken })
     .finally(() => refreshLeaderboard({ silent: true }));
+}
+
+async function loadRemoteGameState() {
+  const account = getAccount();
+  if (!account) return;
+  try {
+    const data = await callGameApi({ action: "loadGameState", playerId: account.id, accountToken: account.authToken });
+    if (!data.gameState) return;
+    if (data.gameState.player) writeScopedJson(STORAGE.player, data.gameState.player);
+    if (data.gameState.feed) writeScopedJson(STORAGE.feed, data.gameState.feed);
+    if (data.gameState.inventory) writeScopedJson(STORAGE.inventory, data.gameState.inventory);
+    if (data.gameState.gifts) writeScopedJson(STORAGE.gifts, data.gameState.gifts);
+    if (data.gameState.friends) writeScopedJson(STORAGE.friends, data.gameState.friends);
+  } catch {
+    // Local account-scoped progress remains authoritative if cloud state is unavailable.
+  }
+}
+
+async function saveRemoteGameState() {
+  const account = getAccount();
+  const player = getPlayer();
+  if (!account || !player) return;
+  try {
+    await callGameApi({
+      action: "saveGameState",
+      playerId: account.id,
+      accountToken: account.authToken,
+      gameState: {
+        player,
+        feed: getFeedState(),
+        inventory: getInventoryState(),
+        gifts: getGiftState(),
+        friends: getFriendsState(),
+        updatedAt: Date.now(),
+      },
+    });
+  } catch {
+    // Gameplay must never block on cloud storage.
+  }
 }
 
 function portraitExpression(mood = state.mood) {
@@ -660,6 +737,7 @@ function feedDriver() {
   feed.logs.unshift({ id: `${Date.now()}`, time: Date.now(), value, growthValue, lucky, foodId: useFavoriteFood ? player.driverId : "daily-stock" });
   saveFeedState(feed);
   savePlayer({ ...player, growth: (player.growth || 0) + growthValue });
+  saveRemoteGameState();
   syncRemote(lucky ? "luckyFeed" : "feed").finally(() => refreshLeaderboard({ silent: true }));
 
   state.mood = "eat";
@@ -859,16 +937,19 @@ function renderWarehouse() {
   if (!player) return renderSelect();
   const inventory = getInventoryState();
   const gifts = getGiftState();
+  const friends = getFriendsState().friends;
+  const hasFriends = friends.length > 0;
   const collected = collectionCount(inventory);
   const missing = foodCatalog.filter((food) => (inventory.items[food.id] || 0) <= 0);
   return `
     <main class="warehouse-main">
       <section class="panel collection-panel">
         <h2>食物仓库</h2>
-        <p class="label">集合进度 ${collected}/8 · 珍珠 ${player.treasures || 0} · 本周可赠送 ${giftLeft(gifts)}/${WEEKLY_GIFT_LIMIT}</p>
+        <p class="label">集合进度 ${collected}/8 · 珍珠 ${player.treasures || 0}${hasFriends ? ` · 本周可赠送 ${giftLeft(gifts)}/${WEEKLY_GIFT_LIMIT}` : ""}</p>
         <div class="progress collection-progress" style="--progress:${Math.round((collected / foodCatalog.length) * 100)}%"><span></span></div>
         <p class="label">缺少：${missing.length ? missing.map((food) => food.name).join("、") : "已集齐"}</p>
         <button class="btn" data-action="redeemCollection" ${canRedeemCollection(inventory) ? "" : "disabled"}>集齐兑换 金牌美食家</button>
+        ${hasFriends ? "" : `<p class="label">暂无好友，添加好友后这里会开放食物赠送。</p>`}
       </section>
       <section class="food-grid">
         ${foodCatalog.map((food) => {
@@ -883,26 +964,28 @@ function renderWarehouse() {
               </div>
               <span class="rarity ${rarity.className}">${rarity.label}</span>
               <span class="food-count">x${qty}</span>
-              <button class="mini-btn" data-gift="${food.id}" ${qty > 0 && giftLeft(gifts) > 0 ? "" : "disabled"}>赠送</button>
+              ${hasFriends ? `<button class="mini-btn" data-gift="${food.id}" ${qty > 0 && giftLeft(gifts) > 0 ? "" : "disabled"}>赠送</button>` : ""}
             </article>
           `;
         }).join("")}
       </section>
-      <section class="panel gift-log-panel">
-        <h2>最近赠送</h2>
-        <div class="list">
-          ${gifts.records.length ? gifts.records.slice(0, 5).map((record) => {
-            const food = findFood(record.foodId);
-            return `<div class="list-row"><span>${food.emoji}</span><div><strong>送给 ${record.to}</strong><small>${food.name} x${record.quantity}</small></div><span>${record.weekId}</span></div>`;
-          }).join("") : `<p class="label">还没有赠送记录。</p>`}
-        </div>
-      </section>
-      ${state.giftFoodId ? renderGiftModal() : ""}
+      ${hasFriends ? `
+        <section class="panel gift-log-panel">
+          <h2>最近赠送</h2>
+          <div class="list">
+            ${gifts.records.length ? gifts.records.slice(0, 5).map((record) => {
+              const food = findFood(record.foodId);
+              return `<div class="list-row"><span>${food.emoji}</span><div><strong>送给 ${record.to}</strong><small>${food.name} x${record.quantity}</small></div><span>${record.weekId}</span></div>`;
+            }).join("") : `<p class="label">还没有赠送记录。</p>`}
+          </div>
+        </section>
+      ` : ""}
+      ${state.giftFoodId && hasFriends ? renderGiftModal(friends[0]) : ""}
     </main>
   `;
 }
 
-function renderGiftModal() {
+function renderGiftModal(friend) {
   const inventory = getInventoryState();
   const food = findFood(state.giftFoodId);
   const owned = inventory.items[food.id] || 0;
@@ -912,7 +995,7 @@ function renderGiftModal() {
     <div class="modal-backdrop">
       <section class="gift-modal panel">
         <h2>赠送食物给好友</h2>
-        <p class="label">好友：${friend.name} ${friend.rank}</p>
+        <p class="label">好友：${friend.name}</p>
         <div class="gift-preview" style="--driver:${food.color}">
           <span>${food.emoji}</span>
           <div><strong>${food.name}</strong><small>持有 x${owned} · ${food.driverName}</small></div>
@@ -933,28 +1016,35 @@ function renderGiftModal() {
 }
 
 function openGift(foodId) {
+  const friends = getFriendsState().friends;
+  if (!friends.length) return showToast("暂无好友，不能赠送");
   state.giftFoodId = foodId;
   state.giftQuantity = 1;
   render();
 }
 
 function confirmGift() {
+  const friends = getFriendsState().friends;
   const gifts = getGiftState();
+  if (!friends.length) return showToast("暂无好友，不能赠送");
   if (!state.giftFoodId || giftLeft(gifts) <= 0) return showToast("本周赠送次数已用完");
   const food = findFood(state.giftFoodId);
   const quantity = Math.min(5, state.giftQuantity);
   if (!consumeFood(food.id, quantity)) return showToast("库存不足，无法赠送");
+  const receiver = friends[0];
   gifts.sentThisWeek += 1;
   gifts.records.unshift({
     id: `${Date.now()}`,
     foodId: food.id,
     quantity,
-    to: friend.name,
+    to: receiver.name,
+    receiverId: receiver.id,
     weekId: gifts.weekId,
     sentAt: Date.now(),
   });
   gifts.records = gifts.records.slice(0, 12);
   saveGiftState(gifts);
+  saveRemoteGameState();
   state.giftFoodId = "";
   state.giftQuantity = 1;
   showToast(`已赠送 ${food.name} x${quantity}`);
@@ -976,6 +1066,7 @@ function redeemCollection() {
     treasures: (player.treasures || 0) + 10,
     achievements,
   });
+  saveRemoteGameState();
   showToast("兑换成功：金牌美食家 + 珍珠 x10");
   render();
 }
@@ -1092,7 +1183,7 @@ function renderSettings() {
       </section>
       <section class="panel">
         <h2>设置</h2>
-        <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。食物仓库、赠送记录和兑换奖励先保存在本机浏览器。</p>
+        <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号。</p>
       </section>
       <section class="actions">
         <button class="btn secondary" data-action="install">安装提示</button>
