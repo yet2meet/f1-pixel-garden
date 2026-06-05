@@ -1,6 +1,6 @@
 # F1 Pixel Garden PWA
 
-这是从微信小游戏迁出的 Web/PWA 版本。当前版本引用 8 位车手的 8 张表情头像：
+这是 F1 像素庄园的 Web/PWA 版本。当前版本引用 8 位车手的 8 张表情头像：
 
 - Max Verstappen
 - Charles Leclerc

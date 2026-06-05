@@ -1,9 +1,0 @@
-{
-  "desc": "F1 pixel mini game pages",
-  "rules": [
-    {
-      "action": "allow",
-      "page": "*"
-    }
-  ]
-}

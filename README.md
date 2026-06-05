@@ -1,40 +1,46 @@
-# 像素 F1 庄园微信小程序
+# F1 像素庄园 Web/PWA
 
-一款参考「蚂蚁庄园」轻养成循环的 F1 车手像素小游戏原型。玩家首次绑定车手后，每天投喂专属食物，累计本周喂食量，周日结算好友榜冠军。
+一款参考轻养成循环的 F1 车手像素小游戏。玩家绑定车手后，每天投喂专属食物，积累成长值和本周喂食量，并通过食物仓库完成收集、赠送与集合兑换。
 
 ## 当前实现
 
-- 原生微信小程序项目结构，可直接用微信开发者工具导入。
-- 车手绑定与更换流程，更换后喂食和成长重新计算。
-- 主养成页：Canvas 2D 像素车手、喂食按钮、每日次数、库存、本周进度、幸运双倍。
-- 主养成页：PNG Sprite Sheet 像素车手、喂食按钮、每日次数、库存、本周进度、幸运双倍。
-- 好友排行页：本地模拟好友榜，玩家成绩高亮。
-- 车手图鉴页：预设 8 位车手、车队、专属食物、背景故事。
-- 成就页：成长值、等级路线、历史冠军占位。
-- 设置页：微信资料授权入口、结算提醒占位。
-- 云函数雏形：`login`、`feedDriver`、`settleWeekly`。
+- Web/PWA 单页应用，发布目录为 `pwa/`。
+- Netlify Functions 后端接口，位于 `netlify/functions/`。
+- 车手绑定、每日投喂、幸运双倍、成长等级和周榜同步。
+- 食物仓库：每日登录奖励、8 种车手专属食物库存、仓库推荐投喂。
+- 本地好友赠送 MVP：每周 2 次，单次 1-5 个，保留最近赠送记录。
+- 集合兑换：集齐 8 种食物各 1 个可兑换“金牌美食家”和珍珠 x10。
+- PWA 支持：manifest、service worker、移动端添加到主屏幕。
 
-## 打开方式
+## 本地运行
 
-1. 打开微信开发者工具。
-2. 选择「导入项目」。
-3. 项目目录选择本文件夹。
-4. AppID 可先使用测试号或替换 `project.config.json` 中的 `appid`。
+```bash
+npm install
+npm run dev
+```
 
-## 云开发接入清单
+默认通过 Netlify Dev 启动本地站点和函数。
 
-1. 在微信开发者工具中开通云开发环境。
-2. 将 `project.config.json` 的 `appid` 替换为正式小程序 AppID。
-3. 上传并部署 `cloudfunctions/login`、`cloudfunctions/feedDriver`、`cloudfunctions/settleWeekly`。
-4. 在云数据库中创建 `users`、`weekly_feed`、`weekly_rank`、`friends`、`feed_log` 集合。
-5. 按 `database.schema.md` 设置集合字段、索引和权限。
-6. 把前端 `utils/gameStore.js` 的本地喂食逻辑替换为 `wx.cloud.callFunction({ name: "feedDriver" })`。
-7. 配置订阅消息模板 ID 后，在设置页接入 `wx.requestSubscribeMessage`。
+## 检查
 
-## 后续建议
+```bash
+npm run check
+```
 
-- 用真实 Sprite Sheet 替换当前 Canvas 像素块占位。
-- 继续精修 `assets/drivers` 下的 Sprite Sheet，替换为更细的手绘或 AI 像素头像素材。
-- 新增开放数据域页面，接入 `wx.getFriendCloudStorage` 好友排行榜。
-- 在云函数中加入 HMAC 签名校验、设备风控和异常日志。
-- 增加挑战帖、好友加油和周冠军奖杯动画。
+该命令会检查 `pwa/app.js`、`pwa/sw.js` 和 `netlify/functions/game.js` 的 JavaScript 语法。
+
+## 部署
+
+项目使用 Netlify：
+
+- 构建命令：`npm run check`
+- 发布目录：`pwa`
+- 函数目录：`netlify/functions`
+
+推送到 GitHub 后由 Netlify 自动构建部署，或使用 Netlify CLI 手动部署。
+
+## 目录
+
+- `pwa/`：网站前端和 PWA 资源。
+- `netlify/functions/`：排行榜、账号和同步接口。
+- `assets/`：车手像素素材和生成过程资源。
