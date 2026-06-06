@@ -23,6 +23,9 @@ const FOOD_FEED_LUCKY_CHANCE = 0.12;
 const EXCLUSIVE_FEED_LUCKY_CHANCE = 0.24;
 const FOOD_WHEEL_CHANCE = 0.07;
 const EXCLUSIVE_WHEEL_CHANCE = 0.12;
+const BASIC_WHEEL_CHANCE = 0.05;
+const DAILY_STOCK_FOOD_ID = "daily-stock";
+const DAILY_STOCK_EMOJI = "⛽";
 const MAX_FOOD_STACK = 99;
 const WEEKLY_GIFT_LIMIT = 2;
 const LUCKY_WHEEL_LIMIT = 3;
@@ -736,24 +739,90 @@ function findFood(foodId) {
   return foodCatalog.find((food) => food.id === foodId) || foodCatalog[0];
 }
 
+function foodQuantity(inventory, foodId) {
+  return inventory.items[foodId] || 0;
+}
+
+function hasFood(inventory, foodId) {
+  return foodQuantity(inventory, foodId) > 0;
+}
+
 function exclusiveFoodForDriver(driverId) {
   return foodCatalog.find((food) => food.driverId === driverId) || foodCatalog[0];
 }
 
 function ownedFoodCount(inventory = getInventoryState()) {
-  return foodCatalog.reduce((sum, food) => sum + (inventory.items[food.id] || 0), 0);
+  return foodCatalog.reduce((sum, food) => sum + foodQuantity(inventory, food.id), 0);
 }
 
 function selectedFeedFood(inventory = getInventoryState(), driverId = getPlayer()?.driverId) {
   const selected = foodCatalog.find((food) => food.id === state.selectedFeedFoodId);
-  if (selected && (inventory.items[selected.id] || 0) > 0) return selected;
+  if (selected && hasFood(inventory, selected.id)) return selected;
   const exclusive = exclusiveFoodForDriver(driverId);
-  if ((inventory.items[exclusive.id] || 0) > 0) return exclusive;
-  return foodCatalog.find((food) => (inventory.items[food.id] || 0) > 0) || null;
+  if (hasFood(inventory, exclusive.id)) return exclusive;
+  return foodCatalog.find((food) => hasFood(inventory, food.id)) || null;
 }
 
 function isExclusiveFood(food, driverId) {
   return Boolean(food && food.driverId && food.driverId === driverId);
+}
+
+function resolveFeedChoice(inventory, feed, driverId) {
+  const food = selectedFeedFood(inventory, driverId);
+  if (food) {
+    return {
+      food,
+      hasInventoryFood: true,
+      isExclusive: isExclusiveFood(food, driverId),
+      foodId: food.id,
+      emoji: food.emoji,
+    };
+  }
+  if (feed.stock > 0) {
+    return {
+      food: null,
+      hasInventoryFood: false,
+      isExclusive: false,
+      foodId: DAILY_STOCK_FOOD_ID,
+      emoji: DAILY_STOCK_EMOJI,
+    };
+  }
+  return null;
+}
+
+function consumeFeedChoice(choice, inventory, feed) {
+  if (choice.hasInventoryFood) {
+    inventory.items[choice.food.id] -= 1;
+    saveInventoryState(inventory);
+    return;
+  }
+  feed.stock -= 1;
+}
+
+function feedLuckyChance(choice) {
+  if (choice.isExclusive) return EXCLUSIVE_FEED_LUCKY_CHANCE;
+  return choice.hasInventoryFood ? FOOD_FEED_LUCKY_CHANCE : BASIC_FEED_LUCKY_CHANCE;
+}
+
+function feedWheelChance(choice) {
+  if (choice.isExclusive) return EXCLUSIVE_WHEEL_CHANCE;
+  return choice.hasInventoryFood ? FOOD_WHEEL_CHANCE : BASIC_WHEEL_CHANCE;
+}
+
+function feedBaseStats(choice) {
+  return {
+    value: FEED_VALUE + (choice.isExclusive ? FAVORITE_FEED_BONUS : 0),
+    growth: GROWTH_PER_FEED + (choice.isExclusive ? FAVORITE_GROWTH_BONUS : 0),
+  };
+}
+
+function feedStatusLine({ choice, useDoubleCard, inCamp, campBonus, lucky }) {
+  if (useDoubleCard) return "加倍卡启动，本次成长翻倍。";
+  if (choice.isExclusive) return `专属食物 ${choice.food.emoji} 命中节奏，加倍概率提升。`;
+  if (choice.hasInventoryFood) return `${choice.food.emoji} ${choice.food.name} 已投喂，非专属也能补能。`;
+  if (inCamp) return `训练营加成生效：+${campBonus} 成长。`;
+  if (lucky) return "完美补给！这口直接双倍加速。";
+  return randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
 }
 
 function addFood(foodId, quantity = 1) {
@@ -778,18 +847,18 @@ function claimDailyFoodReward() {
   const today = todayKey();
   if (inventory.lastDailyReward === today) return;
   const reward = foodCatalog[Math.floor(Math.random() * foodCatalog.length)];
-  inventory.items[reward.id] = Math.min(MAX_FOOD_STACK, (inventory.items[reward.id] || 0) + 1);
+  inventory.items[reward.id] = Math.min(MAX_FOOD_STACK, foodQuantity(inventory, reward.id) + 1);
   inventory.lastDailyReward = today;
   saveInventoryState(inventory);
   showToast(`每日登录奖励：${reward.emoji} ${reward.name} +1`);
 }
 
 function collectionCount(inventory = getInventoryState()) {
-  return foodCatalog.filter((food) => (inventory.items[food.id] || 0) > 0).length;
+  return foodCatalog.filter((food) => hasFood(inventory, food.id)).length;
 }
 
 function canRedeemCollection(inventory = getInventoryState()) {
-  return foodCatalog.every((food) => (inventory.items[food.id] || 0) > 0);
+  return foodCatalog.every((food) => hasFood(inventory, food.id));
 }
 
 function giftLeft(gifts = getGiftState()) {
@@ -1166,25 +1235,18 @@ function feedDriver() {
   const feed = getFeedState();
   if (feed.usedFeeds >= DAILY_LIMIT) return showToast("今天的喂食次数已经用完");
   const inventory = getInventoryState();
-  const chosenFood = selectedFeedFood(inventory, player.driverId);
-  const useInventoryFood = Boolean(chosenFood);
-  const exclusiveFood = isExclusiveFood(chosenFood, player.driverId);
-  if (!useInventoryFood && feed.stock <= 0) return showToast("今天的补给和仓库食物都不足");
+  const choice = resolveFeedChoice(inventory, feed, player.driverId);
+  if (!choice) return showToast("今天的补给和仓库食物都不足");
   const meta = getMetaState();
   const camp = currentTrainingCamp();
   const inCamp = player.driverId === camp.driver.id;
   const useDoubleCard = state.doubleCardArmed && meta.doubleCards > 0;
-  if (useInventoryFood) {
-    inventory.items[chosenFood.id] -= 1;
-    saveInventoryState(inventory);
-  } else {
-    feed.stock -= 1;
-  }
+  consumeFeedChoice(choice, inventory, feed);
 
-  const luckyChance = exclusiveFood ? EXCLUSIVE_FEED_LUCKY_CHANCE : useInventoryFood ? FOOD_FEED_LUCKY_CHANCE : BASIC_FEED_LUCKY_CHANCE;
-  const lucky = Math.random() < luckyChance;
-  const baseValue = FEED_VALUE + (exclusiveFood ? FAVORITE_FEED_BONUS : 0);
-  let baseGrowth = GROWTH_PER_FEED + (exclusiveFood ? FAVORITE_GROWTH_BONUS : 0);
+  const lucky = Math.random() < feedLuckyChance(choice);
+  const baseStats = feedBaseStats(choice);
+  const baseValue = baseStats.value;
+  let baseGrowth = baseStats.growth;
   const campBonus = inCamp ? Math.ceil(baseGrowth * 0.2) : 0;
   baseGrowth += campBonus;
   const value = lucky ? baseValue * 2 : baseValue;
@@ -1204,8 +1266,8 @@ function feedDriver() {
     lucky,
     campBonus,
     doubleCard: useDoubleCard,
-    foodId: useInventoryFood ? chosenFood.id : "daily-stock",
-    exclusive: exclusiveFood,
+    foodId: choice.foodId,
+    exclusive: choice.isExclusive,
   });
   saveFeedState(feed);
   const beforeGrowth = player.growth || 0;
@@ -1216,10 +1278,10 @@ function feedDriver() {
   updateFeedStreak(meta);
   if (inCamp) {
     meta.weekly.campFeeds += 1;
-    if (exclusiveFood) meta.weekly.campFoodFeeds += 1;
+    if (choice.isExclusive) meta.weekly.campFoodFeeds += 1;
     meta.weekly.bonusGrowth += campBonus;
   }
-  const triggerWheel = shouldTriggerWheel(meta, exclusiveFood ? EXCLUSIVE_WHEEL_CHANCE : useInventoryFood ? FOOD_WHEEL_CHANCE : 0.05);
+  const triggerWheel = shouldTriggerWheel(meta, feedWheelChance(choice));
   if (triggerWheel) meta.weekly.luckyWheelUsed += 1;
   saveMetaState(meta);
   checkMilestones(beforeGrowth, afterGrowth, player.driverId);
@@ -1228,20 +1290,10 @@ function feedDriver() {
   syncRemote(lucky ? "luckyFeed" : "feed").finally(() => refreshLeaderboard({ silent: true }));
 
   state.mood = "eat";
-  state.line = useDoubleCard
-    ? "加倍卡启动，本次成长翻倍。"
-    : exclusiveFood
-      ? `专属食物 ${chosenFood.emoji} 命中节奏，加倍概率提升。`
-      : useInventoryFood
-        ? `${chosenFood.emoji} ${chosenFood.name} 已投喂，非专属也能补能。`
-        : inCamp
-          ? `训练营加成生效：+${campBonus} 成长。`
-          : lucky
-            ? "完美补给！这口直接双倍加速。"
-            : randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
+  state.line = feedStatusLine({ choice, useDoubleCard, inCamp, campBonus, lucky });
   state.isFeeding = true;
   state.floatingFood = true;
-  state.floatingFoodEmoji = useInventoryFood ? chosenFood.emoji : "⛽";
+  state.floatingFoodEmoji = choice.emoji;
   state.feedDelta = value;
   state.luckyFlash = lucky;
   render();
@@ -1350,6 +1402,34 @@ function renderSideDriverName(name) {
   return `<h2 class="driver-name" aria-label="${name}">${words}</h2>`;
 }
 
+function renderFeedFoodPicker({ inventory, driver, selectedFood, totalOwnedFoods }) {
+  return `
+    <section class="feed-picker panel">
+      <div class="feed-picker-head">
+        <div>
+          <h2>选择投喂食物</h2>
+          <p class="label">任意车手都能吃任意食物；专属食物提高加倍和幸运转盘触发概率。</p>
+        </div>
+        <span>${totalOwnedFoods} 份</span>
+      </div>
+      <div class="feed-food-grid">
+        ${foodCatalog.map((food) => {
+          const qty = foodQuantity(inventory, food.id);
+          const active = selectedFood && selectedFood.id === food.id;
+          const exclusive = isExclusiveFood(food, driver.id);
+          return `
+            <button class="feed-food ${active ? "active" : ""} ${qty <= 0 ? "empty" : ""}" data-feed-food="${food.id}" style="--driver:${food.color}" ${qty <= 0 ? "disabled" : ""}>
+              <span>${food.emoji}</span>
+              <strong>${food.name}</strong>
+              <small>x${qty}${exclusive ? " · 专属" : ""}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderHome() {
   const { player, feed, driver, level, nextLevel } = currentModel();
   if (!player) return renderSelect();
@@ -1359,7 +1439,7 @@ function renderHome() {
   const inCamp = driver.id === camp.driver.id;
   const equippedSkin = currentSkinName(driver.id);
   const selectedFood = selectedFeedFood(inventory, driver.id);
-  const selectedQty = selectedFood ? inventory.items[selectedFood.id] || 0 : 0;
+  const selectedQty = selectedFood ? foodQuantity(inventory, selectedFood.id) : 0;
   const selectedExclusive = isExclusiveFood(selectedFood, driver.id);
   const totalOwnedFoods = ownedFoodCount(inventory);
   const remain = Math.max(0, DAILY_LIMIT - feed.usedFeeds);
@@ -1426,29 +1506,7 @@ function renderHome() {
         </div>
       </section>
 
-      <section class="feed-picker panel">
-        <div class="feed-picker-head">
-          <div>
-            <h2>选择投喂食物</h2>
-            <p class="label">任意车手都能吃任意食物；专属食物提高加倍和幸运转盘触发概率。</p>
-          </div>
-          <span>${totalOwnedFoods} 份</span>
-        </div>
-        <div class="feed-food-grid">
-          ${foodCatalog.map((food) => {
-            const qty = inventory.items[food.id] || 0;
-            const active = selectedFood && selectedFood.id === food.id;
-            const exclusive = isExclusiveFood(food, driver.id);
-            return `
-              <button class="feed-food ${active ? "active" : ""} ${qty <= 0 ? "empty" : ""}" data-feed-food="${food.id}" style="--driver:${food.color}" ${qty <= 0 ? "disabled" : ""}>
-                <span>${food.emoji}</span>
-                <strong>${food.name}</strong>
-                <small>x${qty}${exclusive ? " · 专属" : ""}</small>
-              </button>
-            `;
-          }).join("")}
-        </div>
-      </section>
+      ${renderFeedFoodPicker({ inventory, driver, selectedFood, totalOwnedFoods })}
 
       <section class="actions">
         <button class="btn" data-action="feed" ${disabled ? "disabled" : ""}>投喂 ${selectedFood ? `${selectedFood.emoji} ${selectedFood.name}` : "基础补给"}</button>
@@ -1497,7 +1555,7 @@ function renderWarehouse() {
   const friends = getFriendsState().friends;
   const hasFriends = friends.length > 0;
   const collected = collectionCount(inventory);
-  const missing = foodCatalog.filter((food) => (inventory.items[food.id] || 0) <= 0);
+  const missing = foodCatalog.filter((food) => !hasFood(inventory, food.id));
   return `
     <main class="warehouse-main">
       <section class="panel collection-panel">
@@ -1510,7 +1568,7 @@ function renderWarehouse() {
       </section>
       <section class="food-grid">
         ${foodCatalog.map((food) => {
-          const qty = inventory.items[food.id] || 0;
+          const qty = foodQuantity(inventory, food.id);
           const rarity = rarityMeta[food.rarity] || rarityMeta.normal;
           return `
             <article class="food-card ${qty <= 0 ? "empty" : ""}" style="--driver:${food.color}">
@@ -1545,7 +1603,7 @@ function renderWarehouse() {
 function renderGiftModal(friend) {
   const inventory = getInventoryState();
   const food = findFood(state.giftFoodId);
-  const owned = inventory.items[food.id] || 0;
+  const owned = foodQuantity(inventory, food.id);
   const quantity = Math.min(state.giftQuantity, Math.min(5, owned));
   state.giftQuantity = Math.max(1, quantity);
   return `
@@ -1672,7 +1730,7 @@ function renderFoodMuseum() {
       </section>
       <section class="museum-grid">
         ${foodCatalog.map((food) => {
-          const owned = (inventory.items[food.id] || 0) > 0;
+          const owned = hasFood(inventory, food.id);
           return `
             <button class="museum-card ${owned ? "" : "locked"}" style="--driver:${food.color}" data-museum="${food.id}">
               <span class="food-icon">${food.emoji}</span>
@@ -1689,7 +1747,7 @@ function renderFoodMuseum() {
 }
 
 function renderFoodDetail(food, inventory) {
-  const qty = inventory.items[food.id] || 0;
+  const qty = foodQuantity(inventory, food.id);
   return `
     <main class="museum-main">
       <section class="panel museum-detail" style="--driver:${food.color}">
