@@ -18,6 +18,11 @@ const FEED_VALUE = 20;
 const GROWTH_PER_FEED = 12;
 const FAVORITE_FEED_BONUS = 8;
 const FAVORITE_GROWTH_BONUS = 4;
+const BASIC_FEED_LUCKY_CHANCE = 0.08;
+const FOOD_FEED_LUCKY_CHANCE = 0.12;
+const EXCLUSIVE_FEED_LUCKY_CHANCE = 0.24;
+const FOOD_WHEEL_CHANCE = 0.07;
+const EXCLUSIVE_WHEEL_CHANCE = 0.12;
 const MAX_FOOD_STACK = 99;
 const WEEKLY_GIFT_LIMIT = 2;
 const LUCKY_WHEEL_LIMIT = 3;
@@ -235,36 +240,116 @@ const rarityMeta = {
   legendary: { label: "传奇", className: "legendary" },
 };
 
-const foodCatalog = drivers.map((driver, index) => ({
-  id: driver.id,
-  name: driver.food,
-  emoji: driver.foodEmoji,
-  driverName: driver.name,
-  team: driver.team,
-  rarity: index === 0 ? "rare" : "normal",
-  color: driver.color,
-  englishName: ["Red Bull Energy Drink", "Banana", "Fresh Salad", "Fried Chicken", "Australian Meat Pie", "Protein Bar", "Italian Energy Pizza", "Spanish Tortilla"][index],
-  nutrition: [
-    ["牛磺酸", "咖啡因", "B 族维生素"],
-    ["钾", "维生素 B6", "碳水化合物"],
-    ["纤维", "维生素", "矿物质"],
-    ["蛋白质", "能量", "B 族维生素"],
-    ["蛋白质", "铁", "碳水化合物"],
-    ["高蛋白", "必需氨基酸", "低糖"],
-    ["碳水化合物", "蛋白质", "番茄红素"],
-    ["蛋白质", "碳水化合物", "脂肪"],
-  ][index],
-  museumStory: [
-    "Red Bull 与车队完全绑定，代表高速、激进和持续能量。每一次排位赛前的能量补给，都像一次把节奏推到极限的仪式。",
-    "香蕉是赛车传奇的轻便补给。它易消化、能快速补能，也象征 Leclerc 在蒙特卡洛街道里的传统与优雅。",
-    "Hamilton 的沙拉是自律和健康哲学。清爽蔬菜帮助长期维持体能，也代表现代车手对环保和身体状态的思考。",
-    "Norris 的炸鸡带着新世代车手的真实感。它不完美但快乐，像迈凯伦橙色车库里轻松又锋利的比赛节奏。",
-    "Piastri 的澳洲牛肉派是家乡味道。烤金派皮和多汁肉馅，连接着澳洲热浪下的卡丁车起点。",
-    "Russell 的蛋白棒代表现代运动营养学。轻便、精准、可控，像他每一次入弯一样讲究效率。",
-    "Antonelli 的意式能量披萨带着年轻车手的学习速度。碳水补给和意大利热情让每一圈都更有冲劲。",
-    "Alonso 的西班牙玉米饼朴素但充满力量。它像老冠军的职业生涯，简洁、耐久、始终有计划。",
-  ][index],
-}));
+const foodCatalog = [
+  {
+    id: "verstappen",
+    driverId: "verstappen",
+    name: "红牛饮料",
+    emoji: "🥤",
+    englishName: "Red Bull Energy Drink",
+    rarity: "rare",
+    nutrition: ["牛磺酸", "咖啡因", "B 族维生素"],
+    museumStory: "高速、激进和持续能量的象征。喂给专属车手时，更容易触发幸运加倍。",
+  },
+  {
+    id: "leclerc",
+    driverId: "leclerc",
+    name: "香蕉",
+    emoji: "🍌",
+    englishName: "Banana",
+    rarity: "normal",
+    nutrition: ["钾", "维生素 B6", "碳水化合物"],
+    museumStory: "轻便、稳定、适合快速补能，是围场里最可靠的基础能量来源之一。",
+  },
+  {
+    id: "hamilton",
+    driverId: "hamilton",
+    name: "素食沙拉",
+    emoji: "🥗",
+    englishName: "Fresh Salad",
+    rarity: "normal",
+    nutrition: ["纤维", "维生素", "矿物质"],
+    museumStory: "清爽自律的补给，代表车手对长期状态和身体管理的重视。",
+  },
+  {
+    id: "norris",
+    driverId: "norris",
+    name: "炸鸡",
+    emoji: "🍗",
+    englishName: "Fried Chicken",
+    rarity: "normal",
+    nutrition: ["蛋白质", "能量", "B 族维生素"],
+    museumStory: "不完美但快乐，像迈凯伦橙色车库里轻松又锋利的比赛节奏。",
+  },
+  {
+    id: "piastri",
+    driverId: "piastri",
+    name: "澳洲牛肉派",
+    emoji: "🥧",
+    englishName: "Australian Meat Pie",
+    rarity: "normal",
+    nutrition: ["蛋白质", "铁", "碳水化合物"],
+    museumStory: "家乡味道和稳定补能的结合，适合冷静执行每一圈计划。",
+  },
+  {
+    id: "russell",
+    driverId: "russell",
+    name: "蛋白棒",
+    emoji: "💪",
+    englishName: "Protein Bar",
+    rarity: "normal",
+    nutrition: ["高蛋白", "必需氨基酸", "低糖"],
+    museumStory: "轻便、精准、可控，像每一次入弯都讲究效率的工程化补给。",
+  },
+  {
+    id: "antonelli",
+    driverId: "antonelli",
+    name: "意式能量披萨",
+    emoji: "🍕",
+    englishName: "Italian Energy Pizza",
+    rarity: "normal",
+    nutrition: ["碳水化合物", "蛋白质", "番茄红素"],
+    museumStory: "碳水补给和意大利热情，让年轻车手的每一圈都更有冲劲。",
+  },
+  {
+    id: "alonso",
+    driverId: "alonso",
+    name: "西班牙玉米饼",
+    emoji: "🫓",
+    englishName: "Spanish Tortilla",
+    rarity: "normal",
+    nutrition: ["蛋白质", "碳水化合物", "脂肪"],
+    museumStory: "朴素但耐久，像老将的职业生涯一样，总能在混乱里找到计划。",
+  },
+  {
+    id: "espresso_gel",
+    driverId: "",
+    name: "能量咖啡胶",
+    emoji: "☕",
+    englishName: "Espresso Energy Gel",
+    rarity: "rare",
+    nutrition: ["咖啡因", "电解质", "快速糖"],
+    museumStory: "通用冲刺补给，任何车手都能吃，但不会触发专属加成。",
+  },
+  {
+    id: "hydration_pack",
+    driverId: "",
+    name: "电解质补给",
+    emoji: "🧃",
+    englishName: "Hydration Pack",
+    rarity: "normal",
+    nutrition: ["钠", "钾", "水分"],
+    museumStory: "通用耐力补给，适合长回合养成和稳定推进。",
+  },
+].map((food) => {
+  const driver = food.driverId ? drivers.find((item) => item.id === food.driverId) : null;
+  return {
+    ...food,
+    driverName: driver ? driver.name : "通用补给",
+    team: driver ? driver.team : "Paddock",
+    color: driver ? driver.color : "#39ff14",
+  };
+});
 
 const wheelRewards = [
   { id: "growth_1", label: "成长 x1", type: "growth", value: 1, weight: 20 },
@@ -282,7 +367,7 @@ const achievementDefs = [
   { id: "ach_feed_50", category: "养成", name: "养护专家", desc: "累计喂食 50 次", target: 50, reward: 8, metric: "totalFeeds" },
   { id: "ach_feed_100", category: "养成", name: "贴心管家", desc: "累计喂食 100 次", target: 100, reward: 15, metric: "totalFeeds" },
   { id: "ach_lucky_3", category: "挑战", name: "幸运车手", desc: "触发幸运时刻 3 次", target: 3, reward: 8, metric: "luckyTriggers" },
-  { id: "ach_food_complete", category: "挑战", name: "美食鉴赏家", desc: "集齐 8 种食物", target: 8, reward: 20, metric: "foodCollected" },
+  { id: "ach_food_complete", category: "挑战", name: "美食鉴赏家", desc: "集齐 10 种食物", target: foodCatalog.length, reward: 20, metric: "foodCollected" },
   { id: "ach_7day_streak", category: "挑战", name: "每日坚持者", desc: "连续 7 天喂食", target: 7, reward: 10, metric: "feedStreak" },
   { id: "ach_skin_3", category: "收集", name: "造型玩家", desc: "拥有 3 个赛季皮肤", target: 3, reward: 8, metric: "skinsOwned" },
   { id: "ach_all_milestones", category: "养成", name: "世界冠军之路", desc: "当前车手达到世界冠军", target: 6, reward: 50, metric: "currentLevel" },
@@ -322,12 +407,13 @@ function currentTrainingCamp() {
   const week = Number(getWeekId().slice(-2));
   const index = (week - 1) % drivers.length;
   const driver = drivers[index];
+  const exclusiveFood = foodCatalog.find((food) => food.driverId === driver.id) || foodCatalog[0];
   return {
     weekId: getWeekId(),
     driver,
     tasks: [
       { id: "camp_feed", name: "主题周冲刺", desc: `本周喂食 ${driver.name} 20 次`, target: 20, reward: "珍珠 x5" },
-      { id: "camp_food", name: "专属补给", desc: `使用 ${driver.food} 喂食 10 次`, target: 10, reward: "食物 x3 + 珍珠 x3" },
+      { id: "camp_food", name: "专属补给", desc: `使用 ${exclusiveFood.name} 喂食 10 次`, target: 10, reward: "食物 x3 + 珍珠 x3" },
       { id: "camp_growth", name: "稳定推进", desc: "本周喂食量达到 180", target: 180, reward: "加倍卡 x1" },
     ],
   };
@@ -339,6 +425,7 @@ const state = {
   giftFoodId: "",
   giftQuantity: 1,
   museumFoodId: "",
+  selectedFeedFoodId: "",
   doubleCardArmed: false,
   wheel: null,
   playerId: "",
@@ -350,6 +437,7 @@ const state = {
   leaderboardUpdatedAt: 0,
   isFeeding: false,
   floatingFood: false,
+  floatingFoodEmoji: "",
   feedDelta: 0,
   luckyFlash: false,
   expressionFrame: 0,
@@ -646,6 +734,26 @@ function saveGiftState(gifts) {
 
 function findFood(foodId) {
   return foodCatalog.find((food) => food.id === foodId) || foodCatalog[0];
+}
+
+function exclusiveFoodForDriver(driverId) {
+  return foodCatalog.find((food) => food.driverId === driverId) || foodCatalog[0];
+}
+
+function ownedFoodCount(inventory = getInventoryState()) {
+  return foodCatalog.reduce((sum, food) => sum + (inventory.items[food.id] || 0), 0);
+}
+
+function selectedFeedFood(inventory = getInventoryState(), driverId = getPlayer()?.driverId) {
+  const selected = foodCatalog.find((food) => food.id === state.selectedFeedFoodId);
+  if (selected && (inventory.items[selected.id] || 0) > 0) return selected;
+  const exclusive = exclusiveFoodForDriver(driverId);
+  if ((inventory.items[exclusive.id] || 0) > 0) return exclusive;
+  return foodCatalog.find((food) => (inventory.items[food.id] || 0) > 0) || null;
+}
+
+function isExclusiveFood(food, driverId) {
+  return Boolean(food && food.driverId && food.driverId === driverId);
 }
 
 function addFood(foodId, quantity = 1) {
@@ -1010,8 +1118,8 @@ function checkAchievements() {
   if (changed) saveAchievementsState(stateAchs);
 }
 
-function shouldTriggerWheel(meta) {
-  return meta.weekly.luckyWheelUsed < LUCKY_WHEEL_LIMIT && Math.random() < 0.05;
+function shouldTriggerWheel(meta, chance = 0.05) {
+  return meta.weekly.luckyWheelUsed < LUCKY_WHEEL_LIMIT && Math.random() < chance;
 }
 
 function pickWheelReward() {
@@ -1058,23 +1166,25 @@ function feedDriver() {
   const feed = getFeedState();
   if (feed.usedFeeds >= DAILY_LIMIT) return showToast("今天的喂食次数已经用完");
   const inventory = getInventoryState();
-  const favoriteQty = inventory.items[player.driverId] || 0;
-  const useFavoriteFood = favoriteQty > 0;
-  if (!useFavoriteFood && feed.stock <= 0) return showToast("今天的补给和专属食物都不足");
+  const chosenFood = selectedFeedFood(inventory, player.driverId);
+  const useInventoryFood = Boolean(chosenFood);
+  const exclusiveFood = isExclusiveFood(chosenFood, player.driverId);
+  if (!useInventoryFood && feed.stock <= 0) return showToast("今天的补给和仓库食物都不足");
   const meta = getMetaState();
   const camp = currentTrainingCamp();
   const inCamp = player.driverId === camp.driver.id;
   const useDoubleCard = state.doubleCardArmed && meta.doubleCards > 0;
-  if (useFavoriteFood) {
-    inventory.items[player.driverId] -= 1;
+  if (useInventoryFood) {
+    inventory.items[chosenFood.id] -= 1;
     saveInventoryState(inventory);
   } else {
     feed.stock -= 1;
   }
 
-  const lucky = Math.random() < 0.12;
-  const baseValue = FEED_VALUE + (useFavoriteFood ? FAVORITE_FEED_BONUS : 0);
-  let baseGrowth = GROWTH_PER_FEED + (useFavoriteFood ? FAVORITE_GROWTH_BONUS : 0);
+  const luckyChance = exclusiveFood ? EXCLUSIVE_FEED_LUCKY_CHANCE : useInventoryFood ? FOOD_FEED_LUCKY_CHANCE : BASIC_FEED_LUCKY_CHANCE;
+  const lucky = Math.random() < luckyChance;
+  const baseValue = FEED_VALUE + (exclusiveFood ? FAVORITE_FEED_BONUS : 0);
+  let baseGrowth = GROWTH_PER_FEED + (exclusiveFood ? FAVORITE_GROWTH_BONUS : 0);
   const campBonus = inCamp ? Math.ceil(baseGrowth * 0.2) : 0;
   baseGrowth += campBonus;
   const value = lucky ? baseValue * 2 : baseValue;
@@ -1086,7 +1196,17 @@ function feedDriver() {
   }
   feed.usedFeeds += 1;
   feed.weeklyFeed += value;
-  feed.logs.unshift({ id: `${Date.now()}`, time: Date.now(), value, growthValue, lucky, campBonus, doubleCard: useDoubleCard, foodId: useFavoriteFood ? player.driverId : "daily-stock" });
+  feed.logs.unshift({
+    id: `${Date.now()}`,
+    time: Date.now(),
+    value,
+    growthValue,
+    lucky,
+    campBonus,
+    doubleCard: useDoubleCard,
+    foodId: useInventoryFood ? chosenFood.id : "daily-stock",
+    exclusive: exclusiveFood,
+  });
   saveFeedState(feed);
   const beforeGrowth = player.growth || 0;
   const afterGrowth = beforeGrowth + growthValue;
@@ -1096,10 +1216,10 @@ function feedDriver() {
   updateFeedStreak(meta);
   if (inCamp) {
     meta.weekly.campFeeds += 1;
-    if (useFavoriteFood) meta.weekly.campFoodFeeds += 1;
+    if (exclusiveFood) meta.weekly.campFoodFeeds += 1;
     meta.weekly.bonusGrowth += campBonus;
   }
-  const triggerWheel = shouldTriggerWheel(meta);
+  const triggerWheel = shouldTriggerWheel(meta, exclusiveFood ? EXCLUSIVE_WHEEL_CHANCE : useInventoryFood ? FOOD_WHEEL_CHANCE : 0.05);
   if (triggerWheel) meta.weekly.luckyWheelUsed += 1;
   saveMetaState(meta);
   checkMilestones(beforeGrowth, afterGrowth, player.driverId);
@@ -1108,9 +1228,20 @@ function feedDriver() {
   syncRemote(lucky ? "luckyFeed" : "feed").finally(() => refreshLeaderboard({ silent: true }));
 
   state.mood = "eat";
-  state.line = useDoubleCard ? "加倍卡启动，本次成长翻倍。" : inCamp ? `训练营加成生效：+${campBonus} 成长。` : useFavoriteFood ? "专属食物命中节奏，成长加速。" : lucky ? "完美补给！这口直接双倍加速。" : randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
+  state.line = useDoubleCard
+    ? "加倍卡启动，本次成长翻倍。"
+    : exclusiveFood
+      ? `专属食物 ${chosenFood.emoji} 命中节奏，加倍概率提升。`
+      : useInventoryFood
+        ? `${chosenFood.emoji} ${chosenFood.name} 已投喂，非专属也能补能。`
+        : inCamp
+          ? `训练营加成生效：+${campBonus} 成长。`
+          : lucky
+            ? "完美补给！这口直接双倍加速。"
+            : randomLine(["能量补满，下一圈继续推。", "这口燃料味道很快。", "维修区节奏不错。"]);
   state.isFeeding = true;
   state.floatingFood = true;
+  state.floatingFoodEmoji = useInventoryFood ? chosenFood.emoji : "⛽";
   state.feedDelta = value;
   state.luckyFlash = lucky;
   render();
@@ -1118,6 +1249,7 @@ function feedDriver() {
   window.setTimeout(() => {
     state.mood = lucky ? "celebrate" : "satisfied";
     state.floatingFood = false;
+    state.floatingFoodEmoji = "";
     render();
   }, 560);
 
@@ -1202,7 +1334,6 @@ function renderView() {
   if (state.view === "training") return renderTrainingCamp();
   if (state.view === "museum") return renderFoodMuseum();
   if (state.view === "skins") return renderSkins();
-  if (state.view === "garage") return renderGarage();
   if (state.view === "leaderboard") return renderLeaderboard();
   if (state.view === "achievements") return renderAchievements();
   if (state.view === "settings") return renderSettings();
@@ -1227,14 +1358,17 @@ function renderHome() {
   const camp = currentTrainingCamp();
   const inCamp = driver.id === camp.driver.id;
   const equippedSkin = currentSkinName(driver.id);
-  const favoriteQty = inventory.items[driver.id] || 0;
+  const selectedFood = selectedFeedFood(inventory, driver.id);
+  const selectedQty = selectedFood ? inventory.items[selectedFood.id] || 0 : 0;
+  const selectedExclusive = isExclusiveFood(selectedFood, driver.id);
+  const totalOwnedFoods = ownedFoodCount(inventory);
   const remain = Math.max(0, DAILY_LIMIT - feed.usedFeeds);
   const growth = player.growth || 0;
   const weeklyProgress = Math.min(100, Math.round((feed.weeklyFeed / 260) * 100));
   const levelProgress = nextLevel.minGrowth === level.minGrowth
     ? 100
     : Math.min(100, Math.round(((growth - level.minGrowth) / (nextLevel.minGrowth - level.minGrowth)) * 100));
-  const disabled = remain <= 0 || (feed.stock <= 0 && favoriteQty <= 0) || state.isFeeding;
+  const disabled = remain <= 0 || (feed.stock <= 0 && totalOwnedFoods <= 0) || state.isFeeding;
   return `
     <main class="home-main">
       <section class="event-strip" style="--driver:${camp.driver.color}">
@@ -1255,7 +1389,7 @@ function renderHome() {
           <button class="portrait-wrap ${state.isFeeding ? "is-feeding" : ""}" data-action="talk" aria-label="和车手互动">
             <img data-home-portrait="${driver.id}" src="${portraitSrc(driver)}" alt="${driver.name}" />
           </button>
-          ${state.floatingFood ? `<div class="food-fly">${driver.foodEmoji}</div>` : ""}
+          ${state.floatingFood ? `<div class="food-fly">${state.floatingFoodEmoji || driver.foodEmoji}</div>` : ""}
           ${state.feedDelta ? `<div class="delta">+${state.feedDelta}</div>` : ""}
         </div>
         <div class="speech">${state.line ? `${driver.moodEmoji} ${state.line}` : "点一点车手，或者给他喂食。今天的围场还很安静。"}</div>
@@ -1281,9 +1415,9 @@ function renderHome() {
           <span class="value">${feed.stock}</span>
         </div>
         <div class="stat wide-stat">
-          <span class="label">仓库推荐</span>
-          <span class="value">${driver.foodEmoji} x${favoriteQty}</span>
-          <small>${favoriteQty > 0 ? "本次优先消耗专属食物，喂食和成长都有加成。" : "没有专属食物时使用每日补给。"}</small>
+          <span class="label">当前食物</span>
+          <span class="value">${selectedFood ? `${selectedFood.emoji} x${selectedQty}` : `基础补给 x${feed.stock}`}</span>
+          <small>${selectedExclusive ? "专属命中：成长加成，幸运加倍概率更高。" : selectedFood ? "非专属食物也可投喂，但没有专属加成。" : "仓库无食物时消耗每日基础补给。"}</small>
         </div>
         <div class="stat wide-stat">
           <span class="label">待使用道具</span>
@@ -1292,8 +1426,32 @@ function renderHome() {
         </div>
       </section>
 
+      <section class="feed-picker panel">
+        <div class="feed-picker-head">
+          <div>
+            <h2>选择投喂食物</h2>
+            <p class="label">任意车手都能吃任意食物；专属食物提高加倍和幸运转盘触发概率。</p>
+          </div>
+          <span>${totalOwnedFoods} 份</span>
+        </div>
+        <div class="feed-food-grid">
+          ${foodCatalog.map((food) => {
+            const qty = inventory.items[food.id] || 0;
+            const active = selectedFood && selectedFood.id === food.id;
+            const exclusive = isExclusiveFood(food, driver.id);
+            return `
+              <button class="feed-food ${active ? "active" : ""} ${qty <= 0 ? "empty" : ""}" data-feed-food="${food.id}" style="--driver:${food.color}" ${qty <= 0 ? "disabled" : ""}>
+                <span>${food.emoji}</span>
+                <strong>${food.name}</strong>
+                <small>x${qty}${exclusive ? " · 专属" : ""}</small>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </section>
+
       <section class="actions">
-        <button class="btn" data-action="feed" ${disabled ? "disabled" : ""}>${favoriteQty > 0 ? "喂食库存" : "喂食补给"} ${driver.foodEmoji} ${driver.food}</button>
+        <button class="btn" data-action="feed" ${disabled ? "disabled" : ""}>投喂 ${selectedFood ? `${selectedFood.emoji} ${selectedFood.name}` : "基础补给"}</button>
         <button class="btn secondary" data-action="toggleDoubleCard" ${meta.doubleCards > 0 ? "" : "disabled"}>${state.doubleCardArmed ? "取消加倍卡" : "激活加倍卡"}</button>
         <button class="btn secondary" data-view="select">更换车手</button>
       </section>
@@ -1344,7 +1502,7 @@ function renderWarehouse() {
     <main class="warehouse-main">
       <section class="panel collection-panel">
         <h2>食物仓库</h2>
-        <p class="label">集合进度 ${collected}/8 · 珍珠 ${player.treasures || 0}${hasFriends ? ` · 本周可赠送 ${giftLeft(gifts)}/${WEEKLY_GIFT_LIMIT}` : ""}</p>
+        <p class="label">集合进度 ${collected}/${foodCatalog.length} · 珍珠 ${player.treasures || 0}${hasFriends ? ` · 本周可赠送 ${giftLeft(gifts)}/${WEEKLY_GIFT_LIMIT}` : ""}</p>
         <div class="progress collection-progress" style="--progress:${Math.round((collected / foodCatalog.length) * 100)}%"><span></span></div>
         <p class="label">缺少：${missing.length ? missing.map((food) => food.name).join("、") : "已集齐"}</p>
         <button class="btn" data-action="redeemCollection" ${canRedeemCollection(inventory) ? "" : "disabled"}>集齐兑换 金牌美食家</button>
@@ -1508,9 +1666,9 @@ function renderFoodMuseum() {
     <main class="museum-main">
       <section class="panel museum-hero">
         <h2>食物博物馆</h2>
-        <p class="label">F1 车手的能量秘密 · 已展览 ${collected}/8</p>
+        <p class="label">F1 车手的能量秘密 · 已展览 ${collected}/${foodCatalog.length}</p>
         <div class="progress collection-progress" style="--progress:${Math.round((collected / foodCatalog.length) * 100)}%"><span></span></div>
-        ${collected >= 8 ? `<p>美食大师之路已开启，称号「美食品鉴家」可在成就中查看。</p>` : `<p class="label">收集食物即可点亮展览卡片。</p>`}
+        ${collected >= foodCatalog.length ? `<p>美食大师之路已开启，称号「美食品鉴家」可在成就中查看。</p>` : `<p class="label">收集食物即可点亮展览卡片。</p>`}
       </section>
       <section class="museum-grid">
         ${foodCatalog.map((food) => {
@@ -1630,7 +1788,7 @@ function equipSkin(skinId) {
 function redeemCollection() {
   const player = getPlayer();
   const inventory = getInventoryState();
-  if (!player || !canRedeemCollection(inventory)) return showToast("还没有集齐 8 种食物");
+  if (!player || !canRedeemCollection(inventory)) return showToast(`还没有集齐 ${foodCatalog.length} 种食物`);
   foodCatalog.forEach((food) => {
     inventory.items[food.id] -= 1;
   });
@@ -1645,28 +1803,6 @@ function redeemCollection() {
   saveRemoteGameState();
   showToast("兑换成功：金牌美食家 + 珍珠 x10");
   render();
-}
-
-function renderGarage() {
-  return `
-    <main class="garage-main">
-      <section class="panel">
-        <h2>车手图鉴</h2>
-        <div class="list">
-          ${drivers.map((driver) => `
-            <div class="list-row" style="--driver:${driver.color}">
-              <img src="${portraitSrc(driver, "neutral")}" alt="${driver.name}" />
-              <div>
-                <strong>#${driver.number} ${driver.name}</strong>
-                <small>${driver.team} · ${driver.story}</small>
-              </div>
-              <span>${driver.badge}</span>
-            </div>
-          `).join("")}
-        </div>
-      </section>
-    </main>
-  `;
 }
 
 function renderLeaderboard() {
@@ -1802,7 +1938,6 @@ function renderTabbar() {
     ["museum", "博物馆"],
     ["skins", "皮肤"],
     ["leaderboard", "排行"],
-    ["garage", "图鉴"],
     ["achievements", "成就"],
     ["settings", "设置"],
   ];
@@ -1828,6 +1963,12 @@ function bindEvents() {
   });
   app.querySelectorAll("[data-bind]").forEach((node) => {
     node.addEventListener("click", () => bindDriver(node.dataset.bind));
+  });
+  app.querySelectorAll("[data-feed-food]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.selectedFeedFoodId = node.dataset.feedFood;
+      render();
+    });
   });
   app.querySelectorAll("[data-action]").forEach((node) => {
     node.addEventListener("click", () => {
