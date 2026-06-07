@@ -953,15 +953,22 @@ async function authenticateAccount(mode) {
     render();
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
   } catch (error) {
-    if (authenticateLocalAccount(mode, accountName, password, nickName)) return;
     const message = {
       account_exists: "账号已存在，请直接登录",
       invalid_login: "账号或密码不正确",
       invalid_credentials: "账号需 3-24 位英文/数字/_/-，密码至少 4 位",
       storage_unavailable: "云端账号暂时不可用",
-    }[error.message] || "账号操作失败";
+    }[error.message] || "云端账号暂时不可用，请使用本地账号按钮或等待后端恢复";
     showToast(message);
   }
+}
+
+function authenticateLocalAccountFromForm(mode) {
+  const accountName = app.querySelector("[data-auth-account]")?.value.trim();
+  const password = app.querySelector("[data-auth-password]")?.value;
+  const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
+  if (!accountName || !password) return showToast("请输入账号和密码");
+  authenticateLocalAccount(mode, accountName, password, nickName);
 }
 
 function logoutAccount() {
@@ -1953,26 +1960,36 @@ function renderAchievements() {
 
 function renderSettings() {
   const account = getAccount();
+  const accountMode = account ? account.localOnly ? "本地账号" : "云端账号" : "";
+  const accountHint = account
+    ? account.localOnly
+      ? "当前存档只保存在这个浏览器和这个网站域名下，不会自动关联云端旧账号。"
+      : "当前存档会尝试和云端后端同步，可跨浏览器关联同一账号。"
+    : "";
   return `
     <main class="settings-main">
       <section class="panel account-panel">
-        <h2>云端账号</h2>
+        <h2>账号</h2>
         ${account ? `
           <p class="label">已登录：${account.nickName} / ${account.accountName}</p>
+          <p class="account-mode ${account.localOnly ? "local" : "cloud"}">${accountMode}</p>
+          <p class="label">${accountHint}</p>
           <p class="label">排行榜 ID：${account.id}</p>
           <section class="actions">
             <button class="btn secondary" data-action="logoutAccount">退出账号</button>
           </section>
         ` : `
-          <p class="label">登录后进度会绑定到同一个账号。云端不可用时会自动使用本地账号模式，同一浏览器里重新登录仍保留进度。</p>
+          <p class="label">云端登录用于跨设备关联旧账号；本地登录只保存到当前浏览器。当前 GitHub Pages 静态站点没有云函数时，云端登录会失败，不会再自动切换成本地账号。</p>
           <div class="account-form">
             <input data-auth-account autocomplete="username" maxlength="24" placeholder="账号：英文/数字/_/-" />
             <input data-auth-nickname maxlength="24" placeholder="昵称：排行榜显示名" />
             <input data-auth-password autocomplete="current-password" maxlength="72" type="password" placeholder="密码：至少 4 位" />
           </div>
           <section class="actions account-actions">
-            <button class="btn" data-action="registerAccount">注册并登录</button>
-            <button class="btn secondary" data-action="loginAccount">登录</button>
+            <button class="btn" data-action="registerAccount">云端注册</button>
+            <button class="btn secondary" data-action="loginAccount">云端登录</button>
+            <button class="btn secondary" data-action="registerLocalAccount">本地注册</button>
+            <button class="btn secondary" data-action="loginLocalAccount">本地登录</button>
           </section>
         `}
       </section>
@@ -2041,6 +2058,8 @@ function bindEvents() {
       if (action === "refreshLeaderboard") refreshLeaderboard({ silent: false });
       if (action === "registerAccount") authenticateAccount("register");
       if (action === "loginAccount") authenticateAccount("login");
+      if (action === "registerLocalAccount") authenticateLocalAccountFromForm("register");
+      if (action === "loginLocalAccount") authenticateLocalAccountFromForm("login");
       if (action === "logoutAccount") logoutAccount();
       if (action === "redeemCollection") redeemCollection();
       if (action === "museumBack") {
