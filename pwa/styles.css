@@ -1134,6 +1134,28 @@ main:not(.home-main) .actions .btn {
   width: 100%;
 }
 
+.account-mode {
+  display: inline-grid;
+  place-items: center;
+  min-height: 28px;
+  margin: 4px 0 8px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.account-mode.cloud {
+  border-color: rgba(57, 255, 20, 0.62);
+  color: var(--f1-green);
+}
+
+.account-mode.local {
+  border-color: rgba(255, 176, 0, 0.72);
+  color: #ffcf66;
+}
+
 .tabbar {
   position: relative;
   z-index: 20;
