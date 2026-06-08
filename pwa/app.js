@@ -894,7 +894,7 @@ function publicPlayerSnapshot(player = getPlayer(), feed = getFeedState()) {
 }
 
 async function callGameApi(payload, options = {}) {
-  const response = await fetch("/.netlify/functions/game", {
+  const response = await fetch(gameApiUrl(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
@@ -905,13 +905,20 @@ async function callGameApi(payload, options = {}) {
   return data;
 }
 
+function gameApiUrl() {
+  const override = document.querySelector('meta[name="game-api-url"]')?.content?.trim();
+  if (override) return override;
+  if (location.hostname.endsWith("netlify.app")) return "/.netlify/functions/game";
+  return "/api/game";
+}
+
 async function syncRemote(reason = "sync") {
   const snapshot = publicPlayerSnapshot();
   if (!snapshot) return;
   const account = getAccount();
   try {
     const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot, accountToken: account?.authToken });
-    state.backend = data.storage === "blob" ? "online" : "offline";
+    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
   } catch {
     state.backend = "offline";
   }
@@ -920,7 +927,7 @@ async function syncRemote(reason = "sync") {
 async function refreshLeaderboard({ silent = true } = {}) {
   try {
     const data = await callGameApi({ action: "leaderboard", weekId: getWeekId() });
-    state.backend = data.storage === "blob" ? "online" : "offline";
+    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
     state.leaderboard = Array.isArray(data.rankings) ? data.rankings : [];
     state.leaderboardUpdatedAt = Date.now();
     render();
@@ -948,7 +955,7 @@ async function authenticateAccount(mode) {
     await loadRemoteGameState();
     const player = getPlayer();
     if (player) savePlayer({ ...player, nickName: data.account.nickName });
-    state.backend = data.storage === "blob" ? "online" : "offline";
+    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
     showToast(mode === "register" ? "账号已注册并登录" : "账号已登录");
     render();
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
