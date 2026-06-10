@@ -230,7 +230,20 @@ async function runViewport(cdp, label, width, height, mobile) {
   await click(cdp, '[data-action="closeFeedPicker"]');
   await waitForGone(cdp, ".feed-picker");
 
+  await click(cdp, '[data-view="warehouse"]');
+  await waitForSelector(cdp, ".warehouse-main");
+  const noFriendWarehouseMetrics = await evaluate(cdp, `(() => ({
+    foodCards: document.querySelectorAll(".food-card").length,
+    giftButtons: document.querySelectorAll("[data-gift]").length,
+    overflowX: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  }))()`);
+  assert(noFriendWarehouseMetrics.foodCards === 10, `${label}: expected 10 food cards without friends`);
+  assert(noFriendWarehouseMetrics.giftButtons === 0, `${label}: gift buttons should be hidden without friends`);
+  assert(noFriendWarehouseMetrics.overflowX <= 2, `${label}: no-friend warehouse view has horizontal overflow ${noFriendWarehouseMetrics.overflowX}`);
+
   await seedGiftState(cdp);
+  await click(cdp, '[data-view="home"]');
+  await waitForSelector(cdp, ".home-main");
   await click(cdp, '[data-view="warehouse"]');
   await waitForSelector(cdp, ".warehouse-main");
   const warehouseMetrics = await evaluate(cdp, `(() => ({
@@ -277,7 +290,7 @@ async function runViewport(cdp, label, width, height, mobile) {
   assert(tabMetrics.settings.hasSyncState, `${label}: settings sync state missing`);
   assert(await evaluate(cdp, `document.body.innerText.includes("安装")`), `${label}: install section missing`);
 
-  return { selectMetrics, homeMetrics, feedMetrics, warehouseMetrics, giftModal, tabMetrics };
+  return { selectMetrics, homeMetrics, feedMetrics, noFriendWarehouseMetrics, warehouseMetrics, giftModal, tabMetrics };
 }
 
 async function seedGiftState(cdp) {

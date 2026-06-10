@@ -125,7 +125,7 @@ function createMockD1() {
   };
 }
 
-async function api(env, payload) {
+async function apiRaw(env, payload) {
   const response = await onRequest({
     env,
     request: new Request("https://example.test/api/game", {
@@ -135,6 +135,11 @@ async function api(env, payload) {
     }),
   });
   const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+async function api(env, payload) {
+  const { response, data } = await apiRaw(env, payload);
   assert(response.ok, `${payload.action} failed: ${response.status} ${JSON.stringify(data)}`);
   return data;
 }
@@ -214,6 +219,66 @@ async function verifyCloudflareApi() {
   assert(savedState.gameState.meta.doubleCards === 10, "saveGameState did not clamp double cards");
   assert(savedState.gameState.achievementsState.claimedTreasures === 9999, "saveGameState did not clamp achievement treasures");
   assert(!Object.keys(savedState.gameState.achievementsState.unlocked).some((key) => key.includes("<")), "saveGameState did not sanitize achievement keys");
+
+  const cloudRankWrite = await api(env, {
+    action: "syncPlayer",
+    accountToken: aliceAccount.authToken,
+    player: {
+      playerId: aliceAccount.id,
+      weekId: "2026-W24",
+      driverId: "verstappen",
+      nickName: "Alice",
+      driverName: "Max Verstappen",
+      team: "Red Bull",
+      badge: "MV",
+      growth: 120,
+      weeklyFeed: 240,
+      usedFeeds: 2,
+      updatedAt: Date.now(),
+    },
+  });
+  assert(cloudRankWrite.storage === "d1", "cloud account ranking write should use D1");
+
+  const unauthorizedRankWrite = await apiRaw(env, {
+    action: "syncPlayer",
+    player: {
+      playerId: aliceAccount.id,
+      weekId: "2026-W24",
+      driverId: "verstappen",
+      nickName: "Alice",
+      driverName: "Max Verstappen",
+      team: "Red Bull",
+      badge: "MV",
+      growth: 120,
+      weeklyFeed: 240,
+      usedFeeds: 2,
+      updatedAt: Date.now(),
+    },
+  });
+  assert(unauthorizedRankWrite.response.status === 401, "cloud ranking write without token should be unauthorized");
+  assert(unauthorizedRankWrite.data.error === "unauthorized_player", "unauthorized ranking write returned wrong error");
+
+  const localRankWrite = await api(env, {
+    action: "syncPlayer",
+    player: {
+      playerId: "local_cheat",
+      weekId: "2026-W24",
+      driverId: "verstappen",
+      nickName: "Local Cheat",
+      driverName: "Max Verstappen",
+      team: "Red Bull",
+      badge: "MV",
+      growth: 999999,
+      weeklyFeed: 5000,
+      usedFeeds: 5,
+      updatedAt: Date.now(),
+    },
+  });
+  assert(localRankWrite.storage === "volatile", "local ranking write should not persist to cloud storage");
+
+  const leaderboard = await api(env, { action: "leaderboard", weekId: "2026-W24" });
+  assert(leaderboard.rankings.some((row) => row.playerId === aliceAccount.id), "cloud ranking write did not appear");
+  assert(!leaderboard.rankings.some((row) => row.playerId === "local_cheat"), "local player polluted cloud leaderboard");
 
   const giftPayload = {
     action: "sendGift",

@@ -77,6 +77,9 @@ export async function handler(event) {
     if (!player) return json(400, { error: "invalid_player" });
 
     if (!store) return json(200, { ok: true, storage: "volatile", player });
+    if (!isCloudPlayerId(player.playerId)) {
+      return json(200, { ok: true, storage: "volatile", player });
+    }
     if (!(await canWritePlayer(store, player.playerId, body.accountToken))) {
       return json(401, { ok: false, error: "unauthorized_player" });
     }
@@ -90,6 +93,9 @@ export async function handler(event) {
     const playerId = safeId(body.playerId);
     if (!playerId) return json(400, { error: "invalid_player" });
     if (!store) return json(200, { ok: true, storage: "volatile", gameState: null });
+    if (!isCloudPlayerId(playerId)) {
+      return json(200, { ok: true, storage: "volatile", gameState: null });
+    }
     if (!(await canWritePlayer(store, playerId, body.accountToken))) {
       return json(401, { ok: false, error: "unauthorized_player" });
     }
@@ -101,6 +107,9 @@ export async function handler(event) {
     const playerId = safeId(body.playerId);
     if (!playerId) return json(400, { error: "invalid_player" });
     if (!store) return json(200, { ok: true, storage: "volatile" });
+    if (!isCloudPlayerId(playerId)) {
+      return json(200, { ok: true, storage: "volatile" });
+    }
     if (!(await canWritePlayer(store, playerId, body.accountToken))) {
       return json(401, { ok: false, error: "unauthorized_player" });
     }
@@ -117,6 +126,7 @@ export async function handler(event) {
     if (!playerId || !weekId) return json(400, { error: "invalid_player" });
 
     if (store) {
+      if (!isCloudPlayerId(playerId)) return json(200, { ok: true, storage: "volatile" });
       if (!(await canWritePlayer(store, playerId, body.accountToken))) {
         return json(401, { ok: false, error: "unauthorized_player" });
       }
@@ -701,9 +711,13 @@ async function saveAccountIndexes(store, accounts, account) {
 }
 
 async function canWritePlayer(store, playerId, accountToken) {
-  if (!playerId.startsWith("acct_")) return true;
+  if (!isCloudPlayerId(playerId)) return false;
   const context = await requireAccount(store, playerId, accountToken);
   return Boolean(context);
+}
+
+function isCloudPlayerId(playerId) {
+  return String(playerId || "").startsWith("acct_");
 }
 
 async function requireAccount(store, playerId, accountToken) {
