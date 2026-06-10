@@ -404,6 +404,7 @@ const state = {
   giftFoodId: "",
   giftQuantity: 1,
   giftFriendId: "",
+  giftRequestId: "",
   museumFoodId: "",
   selectedFeedFoodId: "",
   doubleCardArmed: false,
@@ -426,9 +427,11 @@ const state = {
   luckyFlash: false,
   expressionFrame: 0,
   lastQuoteByDriver: {},
+  installPromptReady: false,
 };
 
 const app = document.querySelector("#app");
+let deferredInstallPrompt = null;
 
 function ensurePlayerId() {
   const account = getAccount();
@@ -893,6 +896,13 @@ async function callGameApi(payload, options = {}) {
   return data;
 }
 
+function createClientRequestId(prefix = "req") {
+  const random = crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "")
+    : `${Date.now()}${Math.random().toString(16).slice(2)}`;
+  return `${prefix}_${random}`.slice(0, 72);
+}
+
 function isCloudAccount(account = getAccount()) {
   return Boolean(account && !account.localOnly);
 }
@@ -940,6 +950,24 @@ function gameApiUrl() {
   if (override) return override;
   if (location.hostname.endsWith("netlify.app")) return "/.netlify/functions/game";
   return "/api/game";
+}
+
+async function promptInstallApp() {
+  if (deferredInstallPrompt) {
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    state.installPromptReady = false;
+    try {
+      promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      showToast(choice?.outcome === "accepted" ? "安装已开始" : "已关闭安装提示");
+    } catch {
+      showToast("当前浏览器暂时不能直接安装，请使用浏览器菜单添加到主屏幕");
+    }
+    render();
+    return;
+  }
+  showToast("iOS: Safari 分享按钮 -> 添加到主屏幕；Android: 浏览器菜单 -> 安装应用");
 }
 
 async function syncRemote(reason = "sync") {
@@ -1760,7 +1788,7 @@ function renderGiftModal(friends) {
         </div>
         <p class="label">预览：赠送 ${state.giftQuantity} 个 ${food.name}</p>
         <section class="actions account-actions">
-          <button class="btn" data-action="confirmGift">确认</button>
+          <button class="btn" data-action="confirmGift" ${state.socialLoading || owned <= 0 ? "disabled" : ""}>确认</button>
           <button class="btn secondary" data-action="cancelGift">取消</button>
         </section>
       </section>
@@ -1776,6 +1804,7 @@ function openGift(foodId) {
     ? state.giftFriendId
     : friends[0].id;
   state.giftQuantity = 1;
+  state.giftRequestId = createClientRequestId("gift");
   render();
 }
 
@@ -1793,7 +1822,6 @@ async function confirmGift() {
     state.socialLoading = true;
     render();
     try {
-      await saveRemoteGameState();
       const data = await callGameApi({
         action: "sendGift",
         playerId: account.id,
@@ -1802,6 +1830,7 @@ async function confirmGift() {
         foodId: food.id,
         quantity,
         weekId: gifts.weekId,
+        requestId: state.giftRequestId || createClientRequestId("gift"),
       });
       if (data.gameState) applyRemoteGameState(data.gameState);
       if (data.friends) saveFriendsState({ friends: data.friends });
@@ -1809,6 +1838,7 @@ async function confirmGift() {
       state.giftFoodId = "";
       state.giftFriendId = "";
       state.giftQuantity = 1;
+      state.giftRequestId = "";
       showToast(`已通过云端赠送 ${food.name} x${quantity}`);
     } catch (error) {
       state.backend = "offline";
@@ -1837,6 +1867,7 @@ async function confirmGift() {
   state.giftFoodId = "";
   state.giftFriendId = "";
   state.giftQuantity = 1;
+  state.giftRequestId = "";
   showToast(`已赠送 ${food.name} x${quantity}`);
   render();
 }
@@ -2162,7 +2193,7 @@ function renderSettings() {
         <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号；静态站点会使用本地账号存档。</p>
       </section>
       <section class="actions">
-        <button class="btn secondary" data-action="install">安装提示</button>
+        <button class="btn secondary" data-action="install">${state.installPromptReady ? "安装到设备" : "安装说明"}</button>
         <button class="btn secondary" data-action="reset">清空本地数据</button>
       </section>
     </main>
@@ -2261,9 +2292,10 @@ function bindEvents() {
       if (action === "confirmGift") confirmGift();
       if (action === "cancelGift") {
         state.giftFoodId = "";
+        state.giftRequestId = "";
         render();
       }
-      if (action === "install") showToast("iOS: Safari 分享按钮 -> 添加到主屏幕；Android: 浏览器菜单 -> 安装应用");
+      if (action === "install") promptInstallApp();
     });
   });
   app.querySelectorAll("[data-gift]").forEach((node) => {
@@ -2316,6 +2348,20 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  state.installPromptReady = true;
+  render();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  state.installPromptReady = false;
+  showToast("应用已安装");
+  render();
+});
 
 render();
 bootstrapBackend();

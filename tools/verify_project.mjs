@@ -14,6 +14,8 @@ const requiredCoreAssets = [
   "pwa/icons/icon-512.png",
   "pwa/icons/apple-touch-icon.png",
 ];
+const driverIds = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];
+const portraitExpressions = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
 const foodIds = [
   "verstappen",
   "leclerc",
@@ -54,6 +56,12 @@ function verifyManifest() {
 
 function verifyResources() {
   requiredCoreAssets.forEach((asset) => assert(exists(asset), `missing core asset: ${asset}`));
+  driverIds.forEach((driverId) => {
+    portraitExpressions.forEach((expression, index) => {
+      const serial = String(index + 1).padStart(2, "0");
+      assert(exists(`pwa/portraits/${driverId}_${serial}_${expression}.png`), `missing portrait: ${driverId}_${serial}_${expression}.png`);
+    });
+  });
   const index = read("pwa/index.html");
   assert(index.includes('<html lang="zh-CN">'), "index lang must be zh-CN");
   assert(index.includes('rel="manifest"'), "index must reference manifest");
@@ -176,7 +184,7 @@ async function verifyCloudflareApi() {
     },
   });
 
-  const gift = await api(env, {
+  const giftPayload = {
     action: "sendGift",
     playerId: aliceAccount.id,
     accountToken: aliceAccount.authToken,
@@ -184,9 +192,16 @@ async function verifyCloudflareApi() {
     foodId: "verstappen",
     quantity: 2,
     weekId: "2026-W24",
-  });
+    requestId: "gift_duplicate_test_001",
+  };
+  const gift = await api(env, giftPayload);
   assert(gift.gameState.inventory.items.verstappen === 1, "sendGift did not deduct sender inventory");
   assert(gift.gameState.gifts.sentThisWeek === 1, "sendGift did not count weekly send");
+
+  const duplicateGift = await api(env, giftPayload);
+  assert(duplicateGift.duplicate === true, "duplicate sendGift was not marked duplicate");
+  assert(duplicateGift.gameState.inventory.items.verstappen === 1, "duplicate sendGift deducted inventory again");
+  assert(duplicateGift.gameState.gifts.sentThisWeek === 1, "duplicate sendGift counted weekly send again");
 
   const bobState = await api(env, {
     action: "loadGameState",

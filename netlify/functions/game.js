@@ -235,8 +235,17 @@ async function sendGift(store, context, body) {
   const foodId = safeFoodId(body.foodId);
   const weekId = safeWeekId(body.weekId);
   const quantity = clampNumber(body.quantity, 1, MAX_GIFT_QUANTITY);
+  const requestId = safeRequestId(body.requestId);
   if (!receiverId || !foodId || !weekId || receiverId === context.id) {
     return json(400, { ok: false, error: "invalid_gift" });
+  }
+
+  const requestKey = requestId ? giftRequestKey(context.id, requestId) : "";
+  if (requestKey) {
+    const previousRequest = await store.getJSON(requestKey);
+    if (previousRequest?.response) {
+      return json(200, { ...previousRequest.response, duplicate: true });
+    }
   }
 
   const receiver = await getAccountById(store, receiverId);
@@ -296,13 +305,16 @@ async function sendGift(store, context, body) {
   await store.setJSON(gameStateKey(context.id), updatedSenderState);
   await deliverGift(store, receiverId, receivedRecord, foodId, quantity, weekId);
 
-  return json(200, {
+  const responsePayload = {
     ok: true,
     storage: "blob",
     gameState: normalizeGameState(updatedSenderState),
     giftRecord: sentRecord,
     friends,
-  });
+  };
+  if (requestKey) await store.setJSON(requestKey, { response: responsePayload, updatedAt: sentAt });
+
+  return json(200, responsePayload);
 }
 
 async function deliverGift(store, receiverId, record, foodId, quantity, weekId) {
@@ -511,6 +523,10 @@ function giftInboxKey(playerId) {
   return `gift-inbox/${playerId}`;
 }
 
+function giftRequestKey(playerId, requestId) {
+  return `gift-requests/${playerId}/${requestId}`;
+}
+
 function createPasswordSalt() {
   return randomBytes(16).toString("hex");
 }
@@ -664,6 +680,12 @@ function safeWeekId(value) {
   if (typeof value !== "string") return "";
   const cleaned = value.trim();
   return /^\d{4}-W\d{2}$/.test(cleaned) ? cleaned : "";
+}
+
+function safeRequestId(value) {
+  if (typeof value !== "string") return "";
+  const cleaned = value.trim();
+  return /^[a-zA-Z0-9_-]{8,80}$/.test(cleaned) ? cleaned : "";
 }
 
 function clampText(value, max) {

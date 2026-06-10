@@ -50,6 +50,13 @@ npm run check
 - 核心资源、图标、service worker 缓存清单检查。
 - 使用内存 D1 模拟 Cloudflare API，验证注册、搜索账号、添加好友、服务端赠送、接收方领取礼物。
 
+可选浏览器冒烟检查需要本机 Chrome 或 Edge，并先用静态服务器托管 `pwa/`：
+
+```bash
+python -m http.server 4174 -d pwa
+npm run browser:smoke -- http://127.0.0.1:4174
+```
+
 ## Cloudflare Pages + D1 部署
 
 推荐长期部署方式是 Cloudflare Pages + D1。
@@ -89,6 +96,7 @@ Cloudflare Pages 会发布 `pwa/`，并通过 `functions/api/game.js` 暴露 `/a
 - 本地账号只保存当前浏览器存档，不支持跨设备好友。
 - 仓库在没有好友时不会显示赠送按钮。
 - 赠送由服务器执行：校验登录 token、好友关系、食物 ID、数量、每周次数和发送方云端库存。
+- 云端赠送带请求 ID，重复点击或网络重试会返回同一次结果，不会重复扣库存或重复发礼物。
 - 当前限制：每周最多赠送 2 次，单次 1-5 个食物。
 - 接收方在线有云存档时会直接入库；没有云存档时，礼物进入云端 inbox，下次登录加载存档时自动入库。
 
