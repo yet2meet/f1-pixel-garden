@@ -5,7 +5,6 @@ const STORAGE = {
   gifts: "f1_pixel_pwa_food_gifts",
   friends: "f1_pixel_pwa_friends",
   meta: "f1_pixel_pwa_meta",
-  skins: "f1_pixel_pwa_skins",
   achievements: "f1_pixel_pwa_achievements",
   deviceId: "f1_pixel_pwa_device_id",
   account: "f1_pixel_pwa_account",
@@ -30,7 +29,6 @@ const MAX_FOOD_STACK = 99;
 const WEEKLY_GIFT_LIMIT = 2;
 const LUCKY_WHEEL_LIMIT = 3;
 const DOUBLE_CARD_LIMIT = 10;
-const SKIN_COST = 30;
 const PORTRAIT_EXPRESSIONS = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
 
 const drivers = [
@@ -372,39 +370,17 @@ const achievementDefs = [
   { id: "ach_lucky_3", category: "挑战", name: "幸运车手", desc: "触发幸运时刻 3 次", target: 3, reward: 8, metric: "luckyTriggers" },
   { id: "ach_food_complete", category: "挑战", name: "美食鉴赏家", desc: "集齐 10 种食物", target: foodCatalog.length, reward: 20, metric: "foodCollected" },
   { id: "ach_7day_streak", category: "挑战", name: "每日坚持者", desc: "连续 7 天喂食", target: 7, reward: 10, metric: "feedStreak" },
-  { id: "ach_skin_3", category: "收集", name: "造型玩家", desc: "拥有 3 个赛季皮肤", target: 3, reward: 8, metric: "skinsOwned" },
   { id: "ach_all_milestones", category: "养成", name: "世界冠军之路", desc: "当前车手达到世界冠军", target: 6, reward: 50, metric: "currentLevel" },
 ];
 
 const milestoneRewards = [
-  { level: 1, treasures: 0, skin: "默认形象" },
+  { level: 1, treasures: 0 },
   { level: 2, treasures: 3 },
-  { level: 3, treasures: 5, skin: "新秀涂装" },
+  { level: 3, treasures: 5 },
   { level: 4, treasures: 10, foods: 5 },
-  { level: 5, treasures: 20, skin: "F1 战士" },
-  { level: 6, treasures: 50, skin: "世界冠军" },
+  { level: 5, treasures: 20 },
+  { level: 6, treasures: 50 },
 ];
-
-const skinCatalog = drivers.map((driver) => ({
-  id: `skin_${driver.id}_monaco_2026_s1`,
-  driverId: driver.id,
-  driverName: driver.name,
-  name: {
-    verstappen: "摩纳哥王子",
-    leclerc: "法拉利红焰",
-    hamilton: "银色闪电",
-    norris: "木瓜夜跑",
-    piastri: "海港冷锋",
-    russell: "银箭几何",
-    antonelli: "新星霓虹",
-    alonso: "翡翠老将",
-  }[driver.id],
-  season: "2026 S1 摩纳哥街道",
-  color: driver.color,
-  rarity: driver.id === "verstappen" || driver.id === "leclerc" ? "rare" : "uncommon",
-  description: `融合蒙特卡洛街道夜景与 ${driver.team} 视觉元素的限定像素涂装。`,
-  cost: SKIN_COST,
-}));
 
 function currentTrainingCamp() {
   const week = Number(getWeekId().slice(-2));
@@ -439,6 +415,7 @@ const state = {
   leaderboard: [],
   leaderboardUpdatedAt: 0,
   isFeeding: false,
+  feedPickerOpen: false,
   floatingFood: false,
   floatingFoodEmoji: "",
   feedDelta: 0,
@@ -513,7 +490,7 @@ function removeScopedItem(key) {
 
 function migrateGuestProgressToAccount(account) {
   if (!account) return;
-  [STORAGE.player, STORAGE.feed, STORAGE.inventory, STORAGE.gifts, STORAGE.friends, STORAGE.meta, STORAGE.skins, STORAGE.achievements].forEach((key) => {
+  [STORAGE.player, STORAGE.feed, STORAGE.inventory, STORAGE.gifts, STORAGE.friends, STORAGE.meta, STORAGE.achievements].forEach((key) => {
     const accountKey = `${key}_${account.id}`;
     if (!localStorage.getItem(accountKey)) {
       const guestValue = localStorage.getItem(key);
@@ -689,19 +666,6 @@ function saveMetaState(meta) {
   writeScopedJson(STORAGE.meta, { ...meta, updatedAt: Date.now() });
 }
 
-function getSkinsState() {
-  const old = readScopedJson(STORAGE.skins) || {};
-  return {
-    owned: Array.isArray(old.owned) ? old.owned : [],
-    equipped: old.equipped && typeof old.equipped === "object" ? old.equipped : {},
-    tickets: old.tickets || 0,
-  };
-}
-
-function saveSkinsState(skins) {
-  writeScopedJson(STORAGE.skins, skins);
-}
-
 function getAchievementsState() {
   const old = readScopedJson(STORAGE.achievements) || {};
   return {
@@ -756,6 +720,7 @@ function ownedFoodCount(inventory = getInventoryState()) {
 }
 
 function selectedFeedFood(inventory = getInventoryState(), driverId = getPlayer()?.driverId) {
+  if (state.selectedFeedFoodId === DAILY_STOCK_FOOD_ID) return null;
   const selected = foodCatalog.find((food) => food.id === state.selectedFeedFoodId);
   if (selected && hasFood(inventory, selected.id)) return selected;
   const exclusive = exclusiveFoodForDriver(driverId);
@@ -887,7 +852,6 @@ function publicPlayerSnapshot(player = getPlayer(), feed = getFeedState()) {
     feed,
     friends: getFriendsState(),
     meta: getMetaState(),
-    skins: getSkinsState(),
     achievementsState: getAchievementsState(),
     updatedAt: Date.now(),
   };
@@ -1022,7 +986,6 @@ function resetAll() {
   removeScopedItem(STORAGE.inventory);
   removeScopedItem(STORAGE.gifts);
   removeScopedItem(STORAGE.meta);
-  removeScopedItem(STORAGE.skins);
   removeScopedItem(STORAGE.achievements);
   state.view = "select";
   state.line = "";
@@ -1045,7 +1008,6 @@ async function loadRemoteGameState() {
     if (data.gameState.gifts) writeScopedJson(STORAGE.gifts, data.gameState.gifts);
     if (data.gameState.friends) writeScopedJson(STORAGE.friends, data.gameState.friends);
     if (data.gameState.meta) writeScopedJson(STORAGE.meta, data.gameState.meta);
-    if (data.gameState.skins) writeScopedJson(STORAGE.skins, data.gameState.skins);
     if (data.gameState.achievementsState) writeScopedJson(STORAGE.achievements, data.gameState.achievementsState);
   } catch {
     // Local account-scoped progress remains authoritative if cloud state is unavailable.
@@ -1068,7 +1030,6 @@ async function saveRemoteGameState() {
         gifts: getGiftState(),
         friends: getFriendsState(),
         meta: getMetaState(),
-        skins: getSkinsState(),
         achievementsState: getAchievementsState(),
         updatedAt: Date.now(),
       },
@@ -1162,7 +1123,6 @@ function checkMilestones(beforeGrowth, afterGrowth, driverId) {
       reachedAt: todayKey(),
       growthValue: afterGrowth,
       treasureReward: reward.treasures || 0,
-      unlockedSkin: reward.skin || "",
     });
     if (reward.treasures) addTreasures(reward.treasures);
     if (reward.foods) awardRandomFood(reward.foods);
@@ -1175,12 +1135,10 @@ function achievementProgress(def) {
   const meta = getMetaState();
   const player = getPlayer();
   const inventory = getInventoryState();
-  const skins = getSkinsState();
   if (def.metric === "totalFeeds") return meta.totalFeeds || 0;
   if (def.metric === "luckyTriggers") return meta.luckyTriggers || 0;
   if (def.metric === "foodCollected") return collectionCount(inventory);
   if (def.metric === "feedStreak") return meta.feedStreak || 0;
-  if (def.metric === "skinsOwned") return skins.owned.length;
   if (def.metric === "currentLevel") return player ? getLevelIndex(player.growth || 0) : 0;
   return 0;
 }
@@ -1306,6 +1264,7 @@ function feedDriver() {
   state.mood = "eat";
   state.line = feedStatusLine({ choice, useDoubleCard, inCamp, campBonus, lucky });
   state.isFeeding = true;
+  state.feedPickerOpen = false;
   state.floatingFood = true;
   state.floatingFoodEmoji = choice.emoji;
   state.feedDelta = value;
@@ -1373,6 +1332,7 @@ function render() {
     ${renderHeader()}
     ${renderView()}
     ${renderTabbar()}
+    ${state.feedPickerOpen ? renderFeedPickerModal() : ""}
     ${state.wheel ? renderWheelModal() : ""}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ""}
   `;
@@ -1399,7 +1359,6 @@ function renderView() {
   if (state.view === "warehouse") return renderWarehouse();
   if (state.view === "training") return renderTrainingCamp();
   if (state.view === "museum") return renderFoodMuseum();
-  if (state.view === "skins") return renderSkins();
   if (state.view === "leaderboard") return renderLeaderboard();
   if (state.view === "achievements") return renderAchievements();
   if (state.view === "settings") return renderSettings();
@@ -1416,31 +1375,49 @@ function renderSideDriverName(name) {
   return `<h2 class="driver-name" aria-label="${name}">${words}</h2>`;
 }
 
-function renderFeedFoodPicker({ inventory, driver, selectedFood, totalOwnedFoods }) {
+function renderFeedPickerModal() {
+  const { player, feed, driver } = currentModel();
+  if (!player) return "";
+  const inventory = getInventoryState();
+  const selectedFood = selectedFeedFood(inventory, driver.id);
+  const totalOwnedFoods = ownedFoodCount(inventory);
+  const canUseBasicStock = state.selectedFeedFoodId === DAILY_STOCK_FOOD_ID || (!selectedFood && feed.stock > 0);
+  const disabled = feed.usedFeeds >= DAILY_LIMIT || state.isFeeding || (feed.stock <= 0 && totalOwnedFoods <= 0);
   return `
-    <section class="feed-picker panel">
-      <div class="feed-picker-head">
-        <div>
-          <h2>选择投喂食物</h2>
-          <p class="label">任意车手都能吃任意食物；专属食物提高加倍和幸运转盘触发概率。</p>
+    <div class="modal-backdrop feed-backdrop">
+      <section class="feed-picker panel">
+        <div class="feed-picker-head">
+          <div>
+            <h2>选择投喂食物</h2>
+            <p class="label">任意车手都能吃任意食物；专属食物提高加倍和幸运转盘触发概率。</p>
+          </div>
+          <button class="mini-btn" data-action="closeFeedPicker">关闭</button>
         </div>
-        <span>${totalOwnedFoods} 份</span>
-      </div>
-      <div class="feed-food-grid">
-        ${foodCatalog.map((food) => {
-          const qty = foodQuantity(inventory, food.id);
-          const active = selectedFood && selectedFood.id === food.id;
-          const exclusive = isExclusiveFood(food, driver.id);
-          return `
-            <button class="feed-food ${active ? "active" : ""} ${qty <= 0 ? "empty" : ""}" data-feed-food="${food.id}" style="--driver:${food.color}" ${qty <= 0 ? "disabled" : ""}>
-              <span>${food.emoji}</span>
-              <strong>${food.name}</strong>
-              <small>x${qty}${exclusive ? " · 专属" : ""}</small>
-            </button>
-          `;
-        }).join("")}
-      </div>
-    </section>
+        <div class="feed-food-grid">
+          ${foodCatalog.map((food) => {
+            const qty = foodQuantity(inventory, food.id);
+            const active = selectedFood && selectedFood.id === food.id;
+            const exclusive = isExclusiveFood(food, driver.id);
+            return `
+              <button class="feed-food ${active ? "active" : ""} ${qty <= 0 ? "empty" : ""}" data-feed-food="${food.id}" style="--driver:${food.color}" ${qty <= 0 ? "disabled" : ""}>
+                <span>${food.emoji}</span>
+                <strong>${food.name}</strong>
+                <small>x${qty}${exclusive ? " · 专属" : ""}</small>
+              </button>
+            `;
+          }).join("")}
+          <button class="feed-food basic-stock ${canUseBasicStock ? "active" : ""} ${feed.stock <= 0 ? "empty" : ""}" data-feed-basic="1" ${feed.stock <= 0 ? "disabled" : ""}>
+            <span>${DAILY_STOCK_EMOJI}</span>
+            <strong>基础补给</strong>
+            <small>x${feed.stock}</small>
+          </button>
+        </div>
+        <section class="actions feed-picker-actions">
+          <button class="btn" data-action="confirmFeed" ${disabled ? "disabled" : ""}>确认投喂 ${selectedFood ? `${selectedFood.emoji} ${selectedFood.name}` : "基础补给"}</button>
+          <button class="btn secondary" data-action="closeFeedPicker">取消</button>
+        </section>
+      </section>
+    </div>
   `;
 }
 
@@ -1451,10 +1428,6 @@ function renderHome() {
   const meta = getMetaState();
   const camp = currentTrainingCamp();
   const inCamp = driver.id === camp.driver.id;
-  const equippedSkin = currentSkinName(driver.id);
-  const selectedFood = selectedFeedFood(inventory, driver.id);
-  const selectedQty = selectedFood ? foodQuantity(inventory, selectedFood.id) : 0;
-  const selectedExclusive = isExclusiveFood(selectedFood, driver.id);
   const totalOwnedFoods = ownedFoodCount(inventory);
   const remain = Math.max(0, DAILY_LIMIT - feed.usedFeeds);
   const growth = player.growth || 0;
@@ -1477,12 +1450,13 @@ function renderHome() {
         <div class="driver-card">
           <div class="driver-meta">
             <span>#${driver.number} ${driver.team}</span>
-            <span>${level.name}${equippedSkin ? ` · ${equippedSkin}` : ""}</span>
+            <span>${level.name}</span>
           </div>
           ${renderSideDriverName(driver.name)}
           <button class="portrait-wrap ${state.isFeeding ? "is-feeding" : ""}" data-action="talk" aria-label="和车手互动">
             <img data-home-portrait="${driver.id}" src="${portraitSrc(driver)}" alt="${driver.name}" />
           </button>
+          ${meta.doubleCards > 0 ? `<button class="double-card-float ${state.doubleCardArmed ? "armed" : ""}" data-action="toggleDoubleCard">${state.doubleCardArmed ? "已启用" : "加倍卡"} x${meta.doubleCards}</button>` : ""}
           ${state.floatingFood ? `<div class="food-fly">${state.floatingFoodEmoji || driver.foodEmoji}</div>` : ""}
           ${state.feedDelta ? `<div class="delta">+${state.feedDelta}</div>` : ""}
         </div>
@@ -1508,23 +1482,10 @@ function renderHome() {
           <span class="label">补给库存</span>
           <span class="value">${feed.stock}</span>
         </div>
-        <div class="stat wide-stat">
-          <span class="label">当前食物</span>
-          <span class="value">${selectedFood ? `${selectedFood.emoji} x${selectedQty}` : `基础补给 x${feed.stock}`}</span>
-          <small>${selectedExclusive ? "专属命中：成长加成，幸运加倍概率更高。" : selectedFood ? "非专属食物也可投喂，但没有专属加成。" : "仓库无食物时消耗每日基础补给。"}</small>
-        </div>
-        <div class="stat wide-stat">
-          <span class="label">待使用道具</span>
-          <span class="value">加倍卡 x${meta.doubleCards || 0}</span>
-          <small>${meta.doubleCards > 0 ? `点击${state.doubleCardArmed ? "取消" : "激活"}，下一次喂食成长 x2。` : "幸运转盘可获得加倍卡。"}</small>
-        </div>
       </section>
 
-      ${renderFeedFoodPicker({ inventory, driver, selectedFood, totalOwnedFoods })}
-
       <section class="actions">
-        <button class="btn" data-action="feed" ${disabled ? "disabled" : ""}>投喂 ${selectedFood ? `${selectedFood.emoji} ${selectedFood.name}` : "基础补给"}</button>
-        <button class="btn secondary" data-action="toggleDoubleCard" ${meta.doubleCards > 0 ? "" : "disabled"}>${state.doubleCardArmed ? "取消加倍卡" : "激活加倍卡"}</button>
+        <button class="btn" data-action="openFeedPicker" ${disabled ? "disabled" : ""}>投喂食物</button>
         <button class="btn secondary" data-view="select">更换车手</button>
       </section>
     </main>
@@ -1553,12 +1514,6 @@ function renderSelect() {
       </section>
     </main>
   `;
-}
-
-function currentSkinName(driverId) {
-  const skins = getSkinsState();
-  const skinId = skins.equipped[driverId];
-  return skinCatalog.find((skin) => skin.id === skinId)?.name || "";
 }
 
 function renderWarehouse() {
@@ -1780,39 +1735,6 @@ function renderFoodDetail(food, inventory) {
   `;
 }
 
-function renderSkins() {
-  const player = getPlayer();
-  if (!player) return renderSelect();
-  const skins = getSkinsState();
-  const ownedCount = skins.owned.length;
-  return `
-    <main class="skins-main">
-      <section class="panel">
-        <h2>赛季皮肤商城</h2>
-        <p class="label">2026 S1「摩纳哥街道」 · 珍珠 ${player.treasures || 0} · 已拥有 ${ownedCount}/${skinCatalog.length}</p>
-        <p class="label">排行兑换券机制需要多人后端，当前先开放珍珠购买和装备。</p>
-      </section>
-      <section class="skin-grid">
-        ${skinCatalog.map((skin) => {
-          const owned = skins.owned.includes(skin.id);
-          const equipped = skins.equipped[skin.driverId] === skin.id;
-          return `
-            <article class="skin-card ${owned ? "owned" : ""}" style="--driver:${skin.color}">
-              <div class="skin-preview">${getDriver(skin.driverId).badge}</div>
-              <div>
-                <strong>${skin.name}</strong>
-                <small>${skin.driverName} · ${skin.season}</small>
-                <small>${skin.description}</small>
-              </div>
-              <button class="mini-btn" data-skin="${skin.id}" data-action="${owned ? "equipSkin" : "buySkin"}" ${!owned && (player.treasures || 0) < skin.cost ? "disabled" : ""}>${owned ? (equipped ? "已装备" : "装备") : `购买 ${skin.cost}`}</button>
-            </article>
-          `;
-        }).join("")}
-      </section>
-    </main>
-  `;
-}
-
 function renderWheelModal() {
   const wheel = state.wheel;
   return `
@@ -1829,32 +1751,6 @@ function renderWheelModal() {
       </section>
     </div>
   `;
-}
-
-function buySkin(skinId) {
-  const player = getPlayer();
-  const skin = skinCatalog.find((item) => item.id === skinId);
-  if (!player || !skin) return;
-  if ((player.treasures || 0) < skin.cost) return showToast("珍珠不足");
-  const skins = getSkinsState();
-  if (skins.owned.includes(skin.id)) return;
-  skins.owned.push(skin.id);
-  saveSkinsState(skins);
-  savePlayer({ ...player, treasures: (player.treasures || 0) - skin.cost });
-  checkAchievements();
-  showToast(`已购买皮肤：${skin.name}`);
-  render();
-}
-
-function equipSkin(skinId) {
-  const skin = skinCatalog.find((item) => item.id === skinId);
-  if (!skin) return;
-  const skins = getSkinsState();
-  if (!skins.owned.includes(skin.id)) return;
-  skins.equipped[skin.driverId] = skin.id;
-  saveSkinsState(skins);
-  showToast(`已装备：${skin.name}`);
-  render();
 }
 
 function redeemCollection() {
@@ -2018,7 +1914,6 @@ function renderTabbar() {
     ["warehouse", "仓库"],
     ["training", "活动"],
     ["museum", "博物馆"],
-    ["skins", "皮肤"],
     ["leaderboard", "排行"],
     ["achievements", "成就"],
     ["settings", "设置"],
@@ -2052,10 +1947,24 @@ function bindEvents() {
       render();
     });
   });
+  app.querySelectorAll("[data-feed-basic]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.selectedFeedFoodId = DAILY_STOCK_FOOD_ID;
+      render();
+    });
+  });
   app.querySelectorAll("[data-action]").forEach((node) => {
     node.addEventListener("click", () => {
       const action = node.dataset.action;
-      if (action === "feed") feedDriver();
+      if (action === "openFeedPicker") {
+        state.feedPickerOpen = true;
+        render();
+      }
+      if (action === "closeFeedPicker") {
+        state.feedPickerOpen = false;
+        render();
+      }
+      if (action === "confirmFeed") feedDriver();
       if (action === "talk") talkToDriver();
       if (action === "reset") resetAll();
       if (action === "toggleDoubleCard") {
@@ -2073,8 +1982,6 @@ function bindEvents() {
         state.museumFoodId = "";
         render();
       }
-      if (action === "buySkin") buySkin(node.dataset.skin);
-      if (action === "equipSkin") equipSkin(node.dataset.skin);
       if (action === "wheelTap" && state.wheel && !state.wheel.settled) {
         state.wheel.clicks += 1;
         render();

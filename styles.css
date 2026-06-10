@@ -156,7 +156,7 @@ main {
 }
 
 .home-main {
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(300px, 1fr) auto auto;
 }
 
 main:not(.home-main) {
@@ -181,7 +181,7 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 
 .hero-stage {
   position: relative;
-  min-height: 0;
+  min-height: min(44vh, 360px);
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -239,7 +239,7 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   justify-items: center;
-  padding: clamp(9px, 1.8vh, 16px) clamp(10px, 3vw, 18px) 0;
+  padding: clamp(8px, 1.4vh, 14px) clamp(10px, 3vw, 18px) 0;
 }
 
 .driver-meta {
@@ -303,7 +303,7 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 
 .portrait-wrap {
   position: relative;
-  width: min(56vw, 34vh, 300px);
+  width: min(62vw, 34vh, 310px);
   max-width: 100%;
   aspect-ratio: 4 / 5;
   align-self: end;
@@ -340,6 +340,32 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 
 .portrait-wrap.is-feeding {
   animation: boostBounce 420ms steps(3) infinite;
+}
+
+.double-card-float {
+  position: absolute;
+  right: clamp(12px, 4vw, 24px);
+  top: clamp(48px, 9vh, 76px);
+  z-index: 4;
+  min-width: 74px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid rgba(57, 255, 20, 0.62);
+  background:
+    linear-gradient(135deg, rgba(57, 255, 20, 0.22), transparent 46%),
+    rgba(5, 8, 13, 0.88);
+  color: var(--f1-green);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: clamp(10px, 2.6vw, 12px);
+  font-weight: 900;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  box-shadow: 0 0 14px rgba(57, 255, 20, 0.16);
+}
+
+.double-card-float.armed {
+  color: #071426;
+  background: var(--f1-green);
+  box-shadow: 0 0 18px rgba(57, 255, 20, 0.42);
 }
 
 .food-fly {
@@ -392,8 +418,10 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 
 .feed-picker {
   display: grid;
-  gap: 8px;
-  padding-block: 10px;
+  gap: 10px;
+  width: min(560px, calc(100vw - 20px));
+  max-height: min(560px, calc(100dvh - 84px));
+  overflow-y: auto;
 }
 
 .feed-picker-head {
@@ -420,13 +448,13 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 
 .feed-food-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .feed-food {
-  min-height: 70px;
-  padding: 6px 4px;
+  min-height: 82px;
+  padding: 8px 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-bottom: 3px solid color-mix(in srgb, var(--driver, var(--f1-green)) 72%, transparent);
   background:
@@ -456,7 +484,7 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 }
 
 .feed-food span {
-  font-size: 21px;
+  font-size: 26px;
 }
 
 .feed-food strong {
@@ -470,13 +498,21 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
   font-size: 9px;
 }
 
+.feed-food.basic-stock {
+  --driver: var(--f1-green);
+}
+
+.feed-picker-actions {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+}
+
 .event-strip {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 54px;
-  padding: 9px 12px;
+  min-height: 46px;
+  padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 4px solid color-mix(in srgb, var(--driver, var(--f1-red)) 80%, transparent);
   background:
@@ -489,7 +525,6 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 .spotlight-driver strong,
 .task-card strong,
 .achievement-card strong,
-.skin-card strong,
 .museum-card strong {
   display: block;
   color: var(--f1-white);
@@ -499,7 +534,6 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 .event-strip small,
 .task-card small,
 .achievement-card small,
-.skin-card small,
 .museum-card small {
   display: block;
   margin-top: 3px;
@@ -521,8 +555,8 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
 }
 
 .stat {
-  min-height: clamp(56px, 9vh, 82px);
-  padding: clamp(7px, 1.4vh, 11px) clamp(6px, 1.7vw, 11px);
+  min-height: clamp(48px, 7.2vh, 64px);
+  padding: clamp(6px, 1vh, 9px) clamp(5px, 1.5vw, 9px);
 }
 
 .wide-stat {
@@ -739,7 +773,6 @@ main:not(.home-main) .actions .btn {
 
 .food-grid,
 .museum-grid,
-.skin-grid,
 .achievement-grid,
 .task-list {
   display: grid;
@@ -875,8 +908,7 @@ main:not(.home-main) .actions .btn {
 }
 
 .task-card,
-.achievement-card,
-.skin-card {
+.achievement-card {
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(0, 0, 0, 0.32);
@@ -884,8 +916,7 @@ main:not(.home-main) .actions .btn {
 }
 
 .task-card.done,
-.achievement-card.done,
-.skin-card.owned {
+.achievement-card.done {
   outline: 1px solid rgba(57, 255, 20, 0.48);
   background: rgba(57, 255, 20, 0.1);
 }
@@ -932,28 +963,6 @@ main:not(.home-main) .actions .btn {
   border: 1px solid rgba(255, 212, 92, 0.34);
   background: color-mix(in srgb, var(--driver, var(--f1-red)) 22%, rgba(0, 0, 0, 0.5));
   font-size: 48px;
-}
-
-.skin-card {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  border-left: 4px solid color-mix(in srgb, var(--driver, var(--f1-red)) 80%, transparent);
-}
-
-.skin-preview {
-  width: 58px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  color: var(--f1-white);
-  font-weight: 900;
-  background:
-    radial-gradient(circle, color-mix(in srgb, var(--driver, var(--f1-red)) 45%, transparent), transparent 68%),
-    rgba(255, 255, 255, 0.08);
-  text-shadow: 2px 0 0 var(--f1-red);
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
 }
 
 .wheel-modal {
@@ -1003,6 +1012,16 @@ main:not(.home-main) .actions .btn {
   place-items: center;
   padding: 18px;
   background: rgba(0, 0, 0, 0.62);
+}
+
+.feed-backdrop {
+  align-items: end;
+  padding: 12px;
+}
+
+.feed-backdrop .feed-picker {
+  border-bottom: 3px solid var(--f1-green);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.52), inset 0 -2px 0 rgba(57, 255, 20, 0.24);
 }
 
 .gift-modal {
@@ -1161,7 +1180,7 @@ main:not(.home-main) .actions .btn {
   z-index: 20;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 4px;
   padding: 0;
   background: transparent;
