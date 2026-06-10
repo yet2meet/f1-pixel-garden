@@ -1394,6 +1394,11 @@ function renderFeedPickerModal() {
           <button class="mini-btn" data-action="closeFeedPicker">关闭</button>
         </div>
         <div class="feed-food-grid">
+          <button class="feed-food basic-stock ${canUseBasicStock ? "active" : ""} ${feed.stock <= 0 ? "empty" : ""}" data-feed-basic="1" ${feed.stock <= 0 ? "disabled" : ""}>
+            <span>${DAILY_STOCK_EMOJI}</span>
+            <strong>基础补给</strong>
+            <small>x${feed.stock}</small>
+          </button>
           ${foodCatalog.map((food) => {
             const qty = foodQuantity(inventory, food.id);
             const active = selectedFood && selectedFood.id === food.id;
@@ -1406,11 +1411,6 @@ function renderFeedPickerModal() {
               </button>
             `;
           }).join("")}
-          <button class="feed-food basic-stock ${canUseBasicStock ? "active" : ""} ${feed.stock <= 0 ? "empty" : ""}" data-feed-basic="1" ${feed.stock <= 0 ? "disabled" : ""}>
-            <span>${DAILY_STOCK_EMOJI}</span>
-            <strong>基础补给</strong>
-            <small>x${feed.stock}</small>
-          </button>
         </div>
         <section class="actions feed-picker-actions">
           <button class="btn" data-action="confirmFeed" ${disabled ? "disabled" : ""}>确认投喂 ${selectedFood ? `${selectedFood.emoji} ${selectedFood.name}` : "基础补给"}</button>
