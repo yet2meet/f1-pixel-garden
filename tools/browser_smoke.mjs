@@ -266,11 +266,15 @@ async function runViewport(cdp, label, width, height, mobile) {
     tabMetrics[view] = await evaluate(cdp, `(() => ({
       mainClass: document.querySelector("main")?.className || "",
       visibleButtons: document.querySelectorAll("button").length,
+      hasRankSummary: Boolean(document.querySelector(".rank-summary")),
+      hasSyncState: Boolean(document.querySelector(".sync-state")),
       overflowX: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
     }))()`);
     assert(tabMetrics[view].mainClass.includes(`${view}-main`) || view === "settings", `${label}: ${view} did not render expected main`);
     assert(tabMetrics[view].overflowX <= 2, `${label}: ${view} view has horizontal overflow ${tabMetrics[view].overflowX}`);
   }
+  assert(tabMetrics.leaderboard.hasRankSummary, `${label}: leaderboard rank summary missing`);
+  assert(tabMetrics.settings.hasSyncState, `${label}: settings sync state missing`);
   assert(await evaluate(cdp, `document.body.innerText.includes("安装")`), `${label}: install section missing`);
 
   return { selectMetrics, homeMetrics, feedMetrics, warehouseMetrics, giftModal, tabMetrics };

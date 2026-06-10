@@ -415,6 +415,8 @@ const state = {
   line: "",
   toast: "",
   backend: "checking",
+  syncPending: false,
+  lastSyncAt: 0,
   leaderboard: [],
   leaderboardUpdatedAt: 0,
   friendSearchQuery: "",
@@ -978,8 +980,13 @@ async function syncRemote(reason = "sync") {
   try {
     const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot, accountToken: account?.authToken });
     state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    if (cloudStorageOnline(data.storage)) {
+      state.syncPending = false;
+      state.lastSyncAt = Date.now();
+    }
   } catch {
     state.backend = "offline";
+    if (isCloudAccount(account)) state.syncPending = true;
   }
 }
 
@@ -1199,7 +1206,10 @@ async function loadRemoteGameState() {
     const data = await callGameApi({ action: "loadGameState", playerId: account.id, accountToken: account.authToken });
     if (!data.gameState) return;
     applyRemoteGameState(data.gameState);
+    state.syncPending = false;
+    state.lastSyncAt = Date.now();
   } catch {
+    if (isCloudAccount(account)) state.syncPending = true;
     // Local account-scoped progress remains authoritative if cloud state is unavailable.
   }
 }
@@ -1209,7 +1219,7 @@ async function saveRemoteGameState() {
   const player = getPlayer();
   if (!account || !player) return;
   try {
-    await callGameApi({
+    const data = await callGameApi({
       action: "saveGameState",
       playerId: account.id,
       accountToken: account.authToken,
@@ -1224,7 +1234,16 @@ async function saveRemoteGameState() {
         updatedAt: Date.now(),
       },
     });
+    state.backend = cloudStorageOnline(data.storage) ? "online" : state.backend;
+    if (cloudStorageOnline(data.storage)) {
+      state.syncPending = false;
+      state.lastSyncAt = Date.now();
+    }
   } catch {
+    if (isCloudAccount(account)) {
+      state.backend = "offline";
+      state.syncPending = true;
+    }
     // Gameplay must never block on cloud storage.
   }
 }
@@ -1532,7 +1551,15 @@ function render() {
 function renderHeader() {
   const { feed } = currentModel();
   const account = getAccount();
-  const backendLabel = account?.localOnly ? "本地账号" : state.backend === "online" ? "云端在线" : state.backend === "offline" ? "本地模式" : "同步中";
+  const backendLabel = account?.localOnly
+    ? "本地账号"
+    : state.syncPending
+      ? "待同步"
+      : state.backend === "online"
+        ? "云端在线"
+        : state.backend === "offline"
+          ? "本地模式"
+          : "同步中";
   return `
     <header class="topbar">
       <div>
@@ -2166,6 +2193,15 @@ function renderFriendsPanel(account) {
 function renderSettings() {
   const account = getAccount();
   const accountMode = account ? account.localOnly ? "本地账号" : "云端账号" : "";
+  const syncStatus = !account
+    ? "未登录账号。本地进度会保存在当前浏览器。"
+    : account.localOnly
+      ? "本地账号不会上传云端，适合单机试玩。"
+      : state.syncPending
+        ? "有本地进度正在等待云端恢复后同步。"
+        : state.lastSyncAt
+          ? `最近云端同步：${new Date(state.lastSyncAt).toLocaleString()}`
+          : "云端账号已登录，下一次保存会更新同步状态。";
   const accountHint = account
     ? account.localOnly
       ? "当前存档只保存在这个浏览器和这个网站域名下，不会自动关联云端旧账号。"
@@ -2179,6 +2215,7 @@ function renderSettings() {
           <p class="label">已登录：${escapeHtml(account.nickName)} / ${escapeHtml(account.accountName)}</p>
           <p class="account-mode ${account.localOnly ? "local" : "cloud"}">${accountMode}</p>
           <p class="label">${accountHint}</p>
+          <p class="sync-state ${state.syncPending ? "pending" : ""}">${syncStatus}</p>
           <p class="label">排行榜 ID：${escapeHtml(account.id)}</p>
           <section class="actions">
             <button class="btn secondary" data-action="logoutAccount">退出账号</button>
@@ -2202,6 +2239,7 @@ function renderSettings() {
       <section class="panel">
         <h2>设置</h2>
         <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号；静态站点会使用本地账号存档。</p>
+        ${account ? "" : `<p class="sync-state">当前未登录，刷新页面不会丢失本地进度；登录云端账号后可尝试跨设备同步。</p>`}
       </section>
       <section class="actions">
         <button class="btn secondary" data-action="install">${state.installPromptReady ? "安装到设备" : "安装说明"}</button>
