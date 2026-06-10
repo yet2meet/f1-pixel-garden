@@ -1361,6 +1361,23 @@ main:not(.home-main) .actions .btn {
   color: #ffcf66;
 }
 
+.sync-state {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 4px solid rgba(57, 255, 20, 0.7);
+  background: rgba(57, 255, 20, 0.08);
+  color: var(--f1-ice);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: clamp(10px, 2.6vw, 12px);
+  line-height: 1.35;
+}
+
+.sync-state.pending {
+  border-left-color: #ffd45c;
+  background: rgba(255, 212, 92, 0.1);
+  color: #ffe7a3;
+}
+
 .tabbar {
   position: relative;
   z-index: 20;
