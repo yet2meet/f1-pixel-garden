@@ -1185,6 +1185,29 @@ main:not(.home-main) .actions .btn {
   outline: 1px solid rgba(57, 255, 20, 0.54);
 }
 
+.rank-summary {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 12px;
+  padding: 9px 10px;
+  border-left: 4px solid var(--f1-green);
+  background:
+    linear-gradient(90deg, rgba(57, 255, 20, 0.16), transparent 54%),
+    rgba(0, 0, 0, 0.3);
+}
+
+.rank-summary strong {
+  color: var(--f1-white);
+  font-size: clamp(12px, 3vw, 14px);
+}
+
+.rank-summary small {
+  color: var(--f1-muted);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: clamp(10px, 2.5vw, 12px);
+  line-height: 1.35;
+}
+
 .account-form {
   display: grid;
   gap: 8px;

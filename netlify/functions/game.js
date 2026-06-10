@@ -12,6 +12,13 @@ const MAX_RANKINGS = 50;
 const WEEKLY_GIFT_LIMIT = 2;
 const MAX_GIFT_QUANTITY = 5;
 const MAX_FOOD_STACK = 99;
+const MAX_DAILY_FEEDS = 5;
+const MAX_DAILY_STOCK = 10;
+const MAX_WEEKLY_FEED = 5000;
+const MAX_GROWTH = 999999;
+const MAX_TREASURES = 9999;
+const MAX_DOUBLE_CARDS = 10;
+const DRIVER_IDS = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];
 const FOOD_IDS = [
   "verstappen",
   "leclerc",
@@ -407,7 +414,7 @@ function normalizePlayer(raw) {
   if (!raw || typeof raw !== "object") return null;
   const playerId = safeId(raw.playerId);
   const weekId = safeWeekId(raw.weekId);
-  const driverId = safeId(raw.driverId);
+  const driverId = safeDriverId(raw.driverId);
   if (!playerId || !weekId || !driverId) return null;
 
   return {
@@ -418,9 +425,9 @@ function normalizePlayer(raw) {
     driverName: clampText(raw.driverName || driverId, 40),
     team: clampText(raw.team || "", 32),
     badge: clampText(raw.badge || "", 4),
-    growth: clampNumber(raw.growth, 0, 999999),
-    weeklyFeed: clampNumber(raw.weeklyFeed, 0, 999999),
-    usedFeeds: clampNumber(raw.usedFeeds, 0, 50),
+    growth: clampNumber(raw.growth, 0, MAX_GROWTH),
+    weeklyFeed: clampNumber(raw.weeklyFeed, 0, MAX_WEEKLY_FEED),
+    usedFeeds: clampNumber(raw.usedFeeds, 0, MAX_DAILY_FEEDS),
     updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
   };
 }
@@ -428,16 +435,114 @@ function normalizePlayer(raw) {
 function normalizeGameState(raw) {
   if (!raw || typeof raw !== "object") return null;
   const state = {
-    player: raw.player && typeof raw.player === "object" ? raw.player : null,
-    feed: raw.feed && typeof raw.feed === "object" ? raw.feed : null,
+    player: normalizeStoredPlayer(raw.player),
+    feed: normalizeFeedState(raw.feed),
     inventory: raw.inventory ? normalizeInventoryState(raw.inventory) : null,
     gifts: raw.gifts ? normalizeGiftState(raw.gifts) : null,
     friends: raw.friends ? normalizeFriendsState(raw.friends) : null,
-    meta: raw.meta && typeof raw.meta === "object" ? raw.meta : null,
-    achievementsState: raw.achievementsState && typeof raw.achievementsState === "object" ? raw.achievementsState : null,
+    meta: normalizeMetaState(raw.meta),
+    achievementsState: normalizeAchievementsState(raw.achievementsState),
     updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
   };
   return state.player || state.feed || state.inventory || state.friends ? state : null;
+}
+
+function normalizeStoredPlayer(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const driverId = safeDriverId(raw.driverId);
+  if (!driverId) return null;
+  return {
+    id: clampText(raw.id || "me", 24),
+    nickName: clampText(raw.nickName || "Pixel Racer", 24),
+    driverId,
+    growth: clampNumber(raw.growth, 0, MAX_GROWTH),
+    treasures: clampNumber(raw.treasures, 0, MAX_TREASURES),
+    achievements: normalizeTextList(raw.achievements, 50, 40),
+    championWeeks: normalizeWeekList(raw.championWeeks, 24),
+    createdAt: clampNumber(raw.createdAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+    updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+  };
+}
+
+function normalizeFeedState(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const weekId = safeWeekId(raw.weekId);
+  return {
+    today: safeDateKey(raw.today),
+    weekId,
+    usedFeeds: clampNumber(raw.usedFeeds, 0, MAX_DAILY_FEEDS),
+    stock: clampNumber(raw.stock, 0, MAX_DAILY_STOCK),
+    weeklyFeed: clampNumber(raw.weeklyFeed, 0, MAX_WEEKLY_FEED),
+    logs: Array.isArray(raw.logs) ? raw.logs.map(normalizeFeedLog).filter(Boolean).slice(0, 20) : [],
+  };
+}
+
+function normalizeFeedLog(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const foodId = raw.foodId === "daily-stock" ? "daily-stock" : safeFoodId(raw.foodId);
+  return {
+    id: clampText(raw.id || `${Date.now()}`, 48),
+    time: clampNumber(raw.time || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+    value: clampNumber(raw.value, 0, 200),
+    growthValue: clampNumber(raw.growthValue, 0, 400),
+    lucky: Boolean(raw.lucky),
+    campBonus: clampNumber(raw.campBonus, 0, 100),
+    doubleCard: Boolean(raw.doubleCard),
+    foodId,
+    exclusive: Boolean(raw.exclusive),
+  };
+}
+
+function normalizeMetaState(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const weekly = raw.weekly && typeof raw.weekly === "object" ? raw.weekly : {};
+  return {
+    weekId: safeWeekId(raw.weekId),
+    totalFeeds: clampNumber(raw.totalFeeds, 0, 1000000),
+    luckyTriggers: clampNumber(raw.luckyTriggers, 0, 1000000),
+    feedStreak: clampNumber(raw.feedStreak, 0, 3650),
+    lastFeedDate: safeDateKey(raw.lastFeedDate),
+    doubleCards: clampNumber(raw.doubleCards, 0, MAX_DOUBLE_CARDS),
+    weekly: {
+      luckyWheelUsed: clampNumber(weekly.luckyWheelUsed, 0, 3),
+      campFeeds: clampNumber(weekly.campFeeds, 0, 200),
+      campFoodFeeds: clampNumber(weekly.campFoodFeeds, 0, 200),
+      campFeedValue: clampNumber(weekly.campFeedValue, 0, MAX_WEEKLY_FEED),
+      bonusGrowth: clampNumber(weekly.bonusGrowth, 0, MAX_GROWTH),
+    },
+    milestones: normalizeMilestones(raw.milestones),
+    titles: normalizeTextList(raw.titles, 20, 40),
+    updatedAt: clampNumber(raw.updatedAt || Date.now(), 0, Number.MAX_SAFE_INTEGER),
+  };
+}
+
+function normalizeMilestones(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const milestones = {};
+  DRIVER_IDS.forEach((driverId) => {
+    const entries = Array.isArray(raw[driverId]) ? raw[driverId] : [];
+    milestones[driverId] = entries.map((entry) => ({
+      level: clampNumber(entry?.level, 1, 8),
+      reachedAt: safeDateKey(entry?.reachedAt),
+      growthValue: clampNumber(entry?.growthValue, 0, MAX_GROWTH),
+    })).slice(0, 8);
+  });
+  return milestones;
+}
+
+function normalizeAchievementsState(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const unlocked = {};
+  if (raw.unlocked && typeof raw.unlocked === "object" && !Array.isArray(raw.unlocked)) {
+    Object.entries(raw.unlocked).slice(0, 80).forEach(([key, value]) => {
+      const safeKey = clampText(key, 48).replace(/[^a-zA-Z0-9_-]/g, "");
+      if (safeKey && value) unlocked[safeKey] = true;
+    });
+  }
+  return {
+    unlocked,
+    claimedTreasures: clampNumber(raw.claimedTreasures, 0, MAX_TREASURES),
+  };
 }
 
 function normalizeInventoryState(raw) {
@@ -671,9 +776,20 @@ function safeId(value) {
   return /^[a-zA-Z0-9_-]{1,80}$/.test(cleaned) ? cleaned : "";
 }
 
+function safeDriverId(value) {
+  const cleaned = safeId(value);
+  return DRIVER_IDS.includes(cleaned) ? cleaned : "";
+}
+
 function safeFoodId(value) {
   const cleaned = safeId(value);
   return FOOD_IDS.includes(cleaned) ? cleaned : "";
+}
+
+function safeDateKey(value) {
+  if (typeof value !== "string") return "";
+  const cleaned = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(cleaned) ? cleaned : "";
 }
 
 function safeWeekId(value) {
@@ -690,6 +806,24 @@ function safeRequestId(value) {
 
 function clampText(value, max) {
   return String(value || "").replace(/[\u0000-\u001f]/g, "").slice(0, max);
+}
+
+function normalizeTextList(raw, limit, maxLength) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const values = [];
+  raw.forEach((item) => {
+    const value = clampText(item, maxLength).replace(/[<>]/g, "").trim();
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    values.push(value);
+  });
+  return values.slice(0, limit);
+}
+
+function normalizeWeekList(raw, limit) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(safeWeekId).filter(Boolean).slice(0, limit);
 }
 
 function clampNumber(value, min, max) {

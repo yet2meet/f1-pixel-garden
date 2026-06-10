@@ -172,17 +172,48 @@ async function verifyCloudflareApi() {
   });
   assert(friends.friends.some((friend) => friend.id === bobAccount.id), "friend add did not persist");
 
-  await api(env, {
+  const savedState = await api(env, {
     action: "saveGameState",
     playerId: aliceAccount.id,
     accountToken: aliceAccount.authToken,
     gameState: {
-      player: { id: "me", driverId: "verstappen", nickName: "Alice", growth: 10 },
-      feed: { weekId: "2026-W24", usedFeeds: 0, stock: 5, weeklyFeed: 0 },
+      player: {
+        id: "me",
+        driverId: "verstappen",
+        nickName: "Alice<script>",
+        growth: 10000000,
+        treasures: 1000000,
+        achievements: ["ach_feed_20", "<bad>", "ach_feed_20"],
+        championWeeks: ["2026-W24", "bad-week"],
+      },
+      feed: {
+        weekId: "2026-W24",
+        today: "2026-06-10",
+        usedFeeds: 500,
+        stock: 500,
+        weeklyFeed: 999999,
+        logs: [{ foodId: "verstappen", value: 999, growthValue: 999, lucky: true }],
+      },
       inventory: { items: Object.fromEntries(foodIds.map((foodId) => [foodId, foodId === "verstappen" ? 3 : 0])) },
       gifts: { weekId: "2026-W24", sentThisWeek: 0, records: [] },
+      meta: {
+        weekId: "2026-W24",
+        totalFeeds: 999999999,
+        feedStreak: 999999,
+        doubleCards: 999,
+        weekly: { luckyWheelUsed: 99, campFeedValue: 999999 },
+      },
+      achievementsState: { unlocked: { ach_feed_20: true, "<script>": true }, claimedTreasures: 999999 },
     },
   });
+  assert(savedState.gameState.player.growth === 999999, "saveGameState did not clamp player growth");
+  assert(savedState.gameState.player.treasures === 9999, "saveGameState did not clamp treasures");
+  assert(savedState.gameState.feed.usedFeeds === 5, "saveGameState did not clamp daily feeds");
+  assert(savedState.gameState.feed.stock === 10, "saveGameState did not clamp daily stock");
+  assert(savedState.gameState.feed.weeklyFeed === 5000, "saveGameState did not clamp weekly feed");
+  assert(savedState.gameState.meta.doubleCards === 10, "saveGameState did not clamp double cards");
+  assert(savedState.gameState.achievementsState.claimedTreasures === 9999, "saveGameState did not clamp achievement treasures");
+  assert(!Object.keys(savedState.gameState.achievementsState.unlocked).some((key) => key.includes("<")), "saveGameState did not sanitize achievement keys");
 
   const giftPayload = {
     action: "sendGift",

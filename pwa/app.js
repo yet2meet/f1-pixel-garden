@@ -27,6 +27,7 @@ const DAILY_STOCK_FOOD_ID = "daily-stock";
 const DAILY_STOCK_EMOJI = "⛽";
 const MAX_FOOD_STACK = 99;
 const WEEKLY_GIFT_LIMIT = 2;
+const LEADERBOARD_LIMIT = 50;
 const LUCKY_WHEEL_LIMIT = 3;
 const DOUBLE_CARD_LIMIT = 10;
 const PORTRAIT_EXPRESSIONS = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
@@ -2014,25 +2015,35 @@ function renderLeaderboard() {
   const me = ensurePlayerId();
   const local = publicPlayerSnapshot();
   const rows = state.leaderboard.length ? state.leaderboard : local ? [local] : [];
+  const ownIndex = local ? rows.findIndex((row) => row.playerId === me) : -1;
+  const ownRankText = !local
+    ? "选择车手并完成一次喂食后会生成你的本周成绩。"
+    : ownIndex >= 0
+      ? `当前排名 #${ownIndex + 1} · 本周喂食 ${local.weeklyFeed || 0} · 成长值 ${local.growth || 0}`
+      : `本周喂食 ${local.weeklyFeed || 0} · 成长值 ${local.growth || 0} · 暂未进入前 ${LEADERBOARD_LIMIT}`;
   return `
     <main class="leaderboard-main">
       <section class="panel">
         <h2>本周排行榜</h2>
-        <p class="label">${state.backend === "online" ? "云端数据已同步，所有玩家共享同一周榜。" : "当前是本地模式。部署 Netlify Functions 后会自动切换到云端周榜。"}</p>
+        <p class="label">${state.backend === "online" ? "云端数据已同步，所有玩家共享同一周榜。" : "当前是本地模式。部署 Cloudflare Pages + D1 后会自动切换到云端周榜。"}</p>
+        <div class="rank-summary">
+          <strong>我的本周状态</strong>
+          <small>${ownRankText}</small>
+        </div>
         <div class="list">
-          ${rows.map((row, index) => {
+          ${rows.length ? rows.map((row, index) => {
             const driver = getDriver(row.driverId);
             return `
               <div class="list-row ${row.playerId === me ? "selected-row" : ""}" style="--driver:${driver.color}">
-                <img src="${portraitSrc(driver, index === 0 ? "celebrate" : "neutral")}" alt="${row.driverName || driver.name}" />
+                <img src="${portraitSrc(driver, index === 0 ? "celebrate" : "neutral")}" alt="${escapeHtml(row.driverName || driver.name)}" />
                 <div>
-                  <strong>#${index + 1} ${row.nickName || "像素车迷"}</strong>
-                  <small>${row.driverName || driver.name} · 本周喂食 ${row.weeklyFeed || 0} · 成长值 ${row.growth || 0}</small>
+                  <strong>#${index + 1} ${escapeHtml(row.nickName || "像素车迷")}</strong>
+                  <small>${escapeHtml(row.driverName || driver.name)} · 本周喂食 ${Number(row.weeklyFeed) || 0} · 成长值 ${Number(row.growth) || 0}</small>
                 </div>
-                <span>${row.badge || driver.badge}</span>
+                <span>${escapeHtml(row.badge || driver.badge)}</span>
               </div>
             `;
-          }).join("")}
+          }).join("") : `<p class="label">还没有本周榜单数据。先完成喂食，或者登录云端账号后刷新排行榜。</p>`}
         </div>
       </section>
       <section class="actions">
@@ -2165,10 +2176,10 @@ function renderSettings() {
       <section class="panel account-panel">
         <h2>账号</h2>
         ${account ? `
-          <p class="label">已登录：${account.nickName} / ${account.accountName}</p>
+          <p class="label">已登录：${escapeHtml(account.nickName)} / ${escapeHtml(account.accountName)}</p>
           <p class="account-mode ${account.localOnly ? "local" : "cloud"}">${accountMode}</p>
           <p class="label">${accountHint}</p>
-          <p class="label">排行榜 ID：${account.id}</p>
+          <p class="label">排行榜 ID：${escapeHtml(account.id)}</p>
           <section class="actions">
             <button class="btn secondary" data-action="logoutAccount">退出账号</button>
           </section>
