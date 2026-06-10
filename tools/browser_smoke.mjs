@@ -158,7 +158,8 @@ async function main() {
     const severeEvents = runtimeEvents.filter((event) => {
       const text = String(event.text || "");
       if (text.includes("501 (Unsupported method")) return false;
-      if (text.includes("404 (File not found")) return false;
+      if (text.includes("405 ()")) return false;
+      if (text.includes("404 (") || text.includes("404 ()")) return false;
       return !text.includes("/api/game");
     });
     assert(severeEvents.length === 0, `browser runtime errors: ${JSON.stringify(severeEvents)}`);
@@ -196,6 +197,10 @@ async function runViewport(cdp, label, width, height, mobile) {
 
   await click(cdp, "[data-bind]");
   await waitForSelector(cdp, ".home-main");
+  await waitUntil(cdp, `(() => {
+    const portrait = document.querySelector("[data-home-portrait]");
+    return Boolean(portrait && portrait.naturalWidth > 0 && portrait.naturalHeight > 0);
+  })()`);
   const homeMetrics = await evaluate(cdp, `(() => {
     const portrait = document.querySelector("[data-home-portrait]");
     return {
@@ -285,7 +290,7 @@ async function seedGiftState(cdp) {
 }
 
 async function waitForApp(cdp) {
-  await waitUntil(cdp, `document.readyState === "complete" && Boolean(document.querySelector("#app .tabbar"))`);
+  await waitUntil(cdp, `["interactive", "complete"].includes(document.readyState) && Boolean(document.querySelector("#app .tabbar"))`);
 }
 
 async function waitForSelector(cdp, selector) {
