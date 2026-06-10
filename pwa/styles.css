@@ -1212,6 +1212,102 @@ main:not(.home-main) .actions .btn {
   box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.16);
 }
 
+.panel-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.friend-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.friend-search input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(57, 255, 20, 0.42);
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.08), transparent 34%),
+    rgba(1, 8, 18, 0.82);
+  color: var(--f1-white);
+  font: inherit;
+  font-size: clamp(11px, 2.8vw, 13px);
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  outline: none;
+}
+
+.friend-search input:focus {
+  border-color: var(--f1-green);
+  box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.16);
+}
+
+.friend-result-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.friend-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-left: 3px solid rgba(57, 255, 20, 0.62);
+  background:
+    linear-gradient(90deg, rgba(57, 255, 20, 0.13), transparent 52%),
+    rgba(0, 0, 0, 0.3);
+}
+
+.friend-row strong,
+.friend-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-row strong {
+  color: var(--f1-white);
+  font-size: clamp(12px, 3vw, 14px);
+}
+
+.friend-row small {
+  color: var(--f1-muted);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: clamp(9px, 2.4vw, 11px);
+}
+
+.friend-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.friend-chip {
+  min-height: 30px;
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(24, 35, 55, 0.94);
+  color: var(--f1-ice);
+  font-size: 11px;
+  font-weight: 900;
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+}
+
+.friend-chip.active {
+  border-color: var(--f1-green);
+  color: #071426;
+  background: var(--f1-green);
+}
+
 .account-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

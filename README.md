@@ -1,26 +1,41 @@
 # F1 像素庄园 Web/PWA
 
-一款参考轻养成循环的 F1 车手像素小游戏。玩家绑定车手后，每天投喂专属食物，积累成长值和本周喂食量，并通过食物仓库完成收集、赠送与集合兑换。
+一款 F1 车手像素养成小游戏。玩家绑定车手后，通过每日投喂、食物收集、训练营、成就、幸运转盘、排行榜、好友和赠送来推进成长。
 
-## 当前实现
+项目不是传统 F1 赛车竞速游戏，而是围绕车手养成和轻社交循环的 Web/PWA。
 
-- Web/PWA 单页应用，发布目录为 `pwa/`。
-- Cloudflare Pages Functions + D1 后端接口，位于 `functions/api/game.js`，用于账号、云端存档和排行榜。
-- 保留 Netlify Functions 旧后端，位于 `netlify/functions/`，作为历史兼容。
-- 车手绑定、每日投喂、幸运双倍、成长等级和周榜同步。
-- 食物仓库：每日登录奖励、10 种食物库存、任意车手可投喂任意食物，专属食物提高幸运加倍概率。
-- 本地好友赠送 MVP：每周 2 次，单次 1-5 个，保留最近赠送记录。
-- 集合兑换：集齐全部食物各 1 个可兑换“金牌美食家”和珍珠 x10。
-- PWA 支持：manifest、service worker、移动端添加到主屏幕。
+## 当前能力
+
+- `pwa/`：可直接发布的单页 PWA，支持移动端添加到主屏幕。
+- 8 名车手、8 组表情头像、10 种食物。
+- 任意车手可投喂任意食物；投喂专属食物时，加倍和幸运转盘概率更高。
+- 每日基础补给、食物仓库、集合兑换、成长等级、成就、训练营、幸运转盘、排行榜。
+- 账号体系：云端账号用于跨设备同步，本地账号用于静态站点或云端不可用时继续游玩。
+- Cloudflare Pages Functions + D1 后端：账号、云存档、排行榜、好友搜索/添加/删除、云端赠送和每周赠送限制。
+- Netlify Functions 兼容后端：保留同一套账号、存档、排行榜和社交 API。
+- GitHub Pages 静态发布：可以本地游玩和检查 UI，但没有 `/api/game` 后端，不能提供真正的跨设备云存档和好友赠送。
 
 ## 本地运行
 
+安装依赖：
+
 ```bash
 npm install
+```
+
+使用 Netlify Dev 运行前端和兼容函数：
+
+```bash
 npm run dev
 ```
 
-默认通过 Netlify Dev 启动本地站点和函数。
+使用 Cloudflare Pages + D1 本地运行：
+
+```bash
+npm run cf:dev
+```
+
+只检查静态 PWA 页面时，也可以直接用任意静态服务器打开 `pwa/`。
 
 ## 检查
 
@@ -28,13 +43,16 @@ npm run dev
 npm run check
 ```
 
-该命令会检查 `pwa/app.js`、`pwa/sw.js`、`netlify/functions/game.js` 和 `functions/api/game.js` 的 JavaScript 语法。
+该命令会执行：
 
-## 部署
+- `pwa/app.js`、`pwa/sw.js`、`netlify/functions/game.js`、`functions/api/game.js` 语法检查。
+- `pwa/manifest.webmanifest` 合法性和 PWA 元信息检查。
+- 核心资源、图标、service worker 缓存清单检查。
+- 使用内存 D1 模拟 Cloudflare API，验证注册、搜索账号、添加好友、服务端赠送、接收方领取礼物。
 
-### Cloudflare Pages + D1
+## Cloudflare Pages + D1 部署
 
-推荐使用 Cloudflare Pages 长期托管：
+推荐长期部署方式是 Cloudflare Pages + D1。
 
 1. 创建 D1 数据库：
 
@@ -42,7 +60,14 @@ npm run check
    npx wrangler d1 create f1-pixel-garden
    ```
 
-2. 将返回的 `database_id` 填入 `wrangler.toml`。
+2. 把命令返回的 `database_id` 填入 `wrangler.toml`：
+
+   ```toml
+   [[d1_databases]]
+   binding = "DB"
+   database_name = "f1-pixel-garden"
+   database_id = "你的 D1 database_id"
+   ```
 
 3. 初始化 D1 表：
 
@@ -53,33 +78,82 @@ npm run check
 4. 部署 Pages：
 
    ```bash
-   npx wrangler pages deploy pwa --project-name=f1-pixel-garden
+   npm run cf:deploy
    ```
 
-Cloudflare Pages 会使用 `functions/api/game.js` 暴露 `/api/game`。前端会自动优先调用 `/api/game`，并把 D1 后端识别为“云端在线”。
+Cloudflare Pages 会发布 `pwa/`，并通过 `functions/api/game.js` 暴露 `/api/game`。
 
-免费额度下的节流策略：
+## 社交和赠送规则
 
-- 静态资源由 Pages 托管，不计入 Worker 请求。
-- 只有登录、投喂、绑定、领奖、排行榜刷新等动作才请求后端。
-- 排行榜一次最多读取 200 条并只展示前 50 条，避免无界读取。
-- 存档和排行榜使用 D1，不使用 KV 高频写入，避免 KV 免费写入额度过低。
+- 只有云端账号支持好友搜索、添加、删除和云端赠送。
+- 本地账号只保存当前浏览器存档，不支持跨设备好友。
+- 仓库在没有好友时不会显示赠送按钮。
+- 赠送由服务器执行：校验登录 token、好友关系、食物 ID、数量、每周次数和发送方云端库存。
+- 当前限制：每周最多赠送 2 次，单次 1-5 个食物。
+- 接收方在线有云存档时会直接入库；没有云存档时，礼物进入云端 inbox，下次登录加载存档时自动入库。
 
-### Netlify 兼容部署
+## Netlify 兼容部署
 
-项目仍保留 Netlify：
+项目仍保留 Netlify 兼容方案：
 
 - 构建命令：`npm run check`
 - 发布目录：`pwa`
 - 函数目录：`netlify/functions`
 
-推送到 GitHub 后由 Netlify 自动构建部署，或使用 Netlify CLI 手动部署。
+Netlify 后端使用 Netlify Blobs 保存账号、存档、排行榜、好友和赠送记录。它适合作为兼容方案；长期免费稳定性和 D1 管理体验优先考虑 Cloudflare。
 
-## 目录
+## GitHub Pages 静态发布
 
-- `pwa/`：网站前端和 PWA 资源。
+GitHub Pages 只能发布静态 `pwa/` 内容。它适合：
+
+- 快速打开页面检查 UI。
+- 使用本地账号在当前浏览器游玩。
+- 验证 PWA 静态资源和移动端布局。
+
+它不适合：
+
+- 云端账号登录。
+- 跨设备存档同步。
+- 好友搜索、添加和服务端赠送。
+- 多玩家共享排行榜。
+
+如果要和朋友一起玩，需要 Cloudflare Pages + D1 或 Netlify Functions 这类带后端的部署。
+
+## 目录说明
+
+- `pwa/`：前端 PWA。
+- `pwa/app.js`：核心玩法、账号、同步、好友和 UI。
+- `pwa/styles.css`：移动端优先界面样式。
+- `pwa/sw.js`：离线缓存和 PWA service worker。
 - `functions/api/game.js`：Cloudflare Pages Functions 后端。
+- `netlify/functions/game.js`：Netlify Functions 兼容后端。
 - `schema.sql`：Cloudflare D1 初始化 schema。
 - `wrangler.toml`：Cloudflare Pages / D1 配置。
-- `netlify/functions/`：排行榜、账号和同步接口。
-- `assets/`：车手像素素材和生成过程资源。
+- `tools/verify_project.mjs`：PWA 和 API 轻量验收脚本。
+- `assets/`：车手素材和生成过程资源。
+
+## 常见故障
+
+### GitHub Pages 打开后看不到最新版本
+
+浏览器可能还在使用旧 service worker 缓存。先刷新页面；仍不更新时，在浏览器开发者工具里清除该站点的 service worker/cache storage，或打开带查询参数的 URL，例如：
+
+```text
+https://yet2meet.github.io/f1-pixel-garden/?v=latest
+```
+
+### 云端登录失败
+
+确认当前部署不是纯 GitHub Pages，并且 `/api/game` 可以访问。Cloudflare 部署还需要确认：
+
+- `wrangler.toml` 的 D1 `database_id` 已替换。
+- 已执行 `schema.sql` 初始化。
+- Pages Functions 成功部署。
+
+### 好友或赠送不可用
+
+确认使用的是云端账号，不是本地账号。赠送还要求双方已经是好友，并且发送方云端库存足够。
+
+### Cloudflare 免费额度
+
+本项目的设计尽量减少 Worker 请求：静态资源由 Pages 直接托管，只有登录、同步、排行榜、好友和赠送会访问后端。小规模朋友游玩通常足够；如果公开传播或玩家增长，需要关注 Cloudflare Pages Functions 和 D1 的当期免费额度与用量。
