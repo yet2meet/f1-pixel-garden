@@ -403,6 +403,7 @@ const state = {
   selectedDriverId: "verstappen",
   giftFoodId: "",
   giftQuantity: 1,
+  giftFriendId: "",
   museumFoodId: "",
   selectedFeedFoodId: "",
   doubleCardArmed: false,
@@ -414,6 +415,9 @@ const state = {
   backend: "checking",
   leaderboard: [],
   leaderboardUpdatedAt: 0,
+  friendSearchQuery: "",
+  friendSearchResults: [],
+  socialLoading: false,
   isFeeding: false,
   feedPickerOpen: false,
   floatingFood: false,
@@ -681,8 +685,28 @@ function saveAchievementsState(achievements) {
 function getFriendsState() {
   const old = readScopedJson(STORAGE.friends) || {};
   return {
-    friends: Array.isArray(old.friends) ? old.friends : [],
+    friends: Array.isArray(old.friends) ? old.friends.map(normalizeFriend).filter(Boolean) : [],
   };
+}
+
+function normalizeFriend(friend) {
+  if (!friend || typeof friend !== "object") return null;
+  const id = String(friend.id || "").trim();
+  if (!id) return null;
+  const accountName = String(friend.accountName || "").trim();
+  const nickName = String(friend.nickName || friend.name || accountName || id).trim();
+  return {
+    id,
+    accountName,
+    nickName,
+    name: nickName,
+    addedAt: Number(friend.addedAt) || Date.now(),
+  };
+}
+
+function saveFriendsState(friendsState) {
+  const friends = Array.isArray(friendsState?.friends) ? friendsState.friends.map(normalizeFriend).filter(Boolean) : [];
+  writeScopedJson(STORAGE.friends, { friends });
 }
 
 function getGiftState() {
@@ -869,6 +893,48 @@ async function callGameApi(payload, options = {}) {
   return data;
 }
 
+function isCloudAccount(account = getAccount()) {
+  return Boolean(account && !account.localOnly);
+}
+
+function applyRemoteGameState(gameState) {
+  if (!gameState) return;
+  if (gameState.player) writeScopedJson(STORAGE.player, gameState.player);
+  if (gameState.feed) writeScopedJson(STORAGE.feed, gameState.feed);
+  if (gameState.inventory) writeScopedJson(STORAGE.inventory, gameState.inventory);
+  if (gameState.gifts) writeScopedJson(STORAGE.gifts, gameState.gifts);
+  if (gameState.friends) saveFriendsState(gameState.friends);
+  if (gameState.meta) writeScopedJson(STORAGE.meta, gameState.meta);
+  if (gameState.achievementsState) writeScopedJson(STORAGE.achievements, gameState.achievementsState);
+}
+
+function cloudStorageOnline(storage) {
+  return storage === "blob" || storage === "d1";
+}
+
+function socialErrorMessage(error) {
+  return {
+    unauthorized_player: "账号登录已过期，请重新登录后再试",
+    invalid_friend: "好友信息无效",
+    friend_not_found: "没有找到这个账号",
+    not_friends: "对方还不是你的好友",
+    invalid_gift: "赠送信息无效",
+    insufficient_inventory: "云端库存不足，本次没有扣库存",
+    weekly_gift_limit: "本周赠送次数已用完",
+    storage_unavailable: "云端社交暂时不可用",
+  }[error] || "云端社交暂时不可用，请稍后再试";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
 function gameApiUrl() {
   const override = document.querySelector('meta[name="game-api-url"]')?.content?.trim();
   if (override) return override;
@@ -882,7 +948,7 @@ async function syncRemote(reason = "sync") {
   const account = getAccount();
   try {
     const data = await callGameApi({ action: "syncPlayer", reason, player: snapshot, accountToken: account?.authToken });
-    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
   } catch {
     state.backend = "offline";
   }
@@ -891,13 +957,111 @@ async function syncRemote(reason = "sync") {
 async function refreshLeaderboard({ silent = true } = {}) {
   try {
     const data = await callGameApi({ action: "leaderboard", weekId: getWeekId() });
-    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
     state.leaderboard = Array.isArray(data.rankings) ? data.rankings : [];
     state.leaderboardUpdatedAt = Date.now();
     render();
   } catch {
     state.backend = "offline";
     if (!silent) showToast("云端排行榜暂时不可用，已保留本地进度");
+    render();
+  }
+}
+
+async function loadCloudFriends({ silent = true } = {}) {
+  const account = getAccount();
+  if (!isCloudAccount(account)) return;
+  try {
+    const data = await callGameApi({
+      action: "listFriends",
+      playerId: account.id,
+      accountToken: account.authToken,
+    });
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    saveFriendsState({ friends: Array.isArray(data.friends) ? data.friends : [] });
+    if (!silent) showToast("好友列表已同步");
+  } catch (error) {
+    state.backend = "offline";
+    if (!silent) showToast(socialErrorMessage(error.message));
+  } finally {
+    render();
+  }
+}
+
+async function searchCloudFriends() {
+  const account = getAccount();
+  if (!isCloudAccount(account)) return showToast("请先使用云端账号登录，GitHub Pages 静态站点不支持云端好友");
+  const query = app.querySelector("[data-friend-search]")?.value.trim() || "";
+  state.friendSearchQuery = query;
+  state.socialLoading = true;
+  render();
+  try {
+    const data = await callGameApi({
+      action: "searchAccounts",
+      playerId: account.id,
+      accountToken: account.authToken,
+      query,
+    });
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    state.friendSearchResults = Array.isArray(data.results) ? data.results : [];
+    if (!state.friendSearchResults.length) showToast("没有找到可添加的账号");
+  } catch (error) {
+    state.backend = "offline";
+    showToast(socialErrorMessage(error.message));
+  } finally {
+    state.socialLoading = false;
+    render();
+  }
+}
+
+async function addCloudFriend(friendId) {
+  const account = getAccount();
+  if (!isCloudAccount(account)) return showToast("本地账号不能添加云端好友");
+  state.socialLoading = true;
+  render();
+  try {
+    const data = await callGameApi({
+      action: "addFriend",
+      playerId: account.id,
+      accountToken: account.authToken,
+      friendId,
+    });
+    saveFriendsState({ friends: Array.isArray(data.friends) ? data.friends : [] });
+    state.friendSearchResults = state.friendSearchResults.filter((friend) => friend.id !== friendId);
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    showToast("好友已添加");
+    saveRemoteGameState();
+  } catch (error) {
+    state.backend = "offline";
+    showToast(socialErrorMessage(error.message));
+  } finally {
+    state.socialLoading = false;
+    render();
+  }
+}
+
+async function removeCloudFriend(friendId) {
+  const account = getAccount();
+  if (!isCloudAccount(account)) return showToast("本地账号没有云端好友列表");
+  state.socialLoading = true;
+  render();
+  try {
+    const data = await callGameApi({
+      action: "removeFriend",
+      playerId: account.id,
+      accountToken: account.authToken,
+      friendId,
+    });
+    saveFriendsState({ friends: Array.isArray(data.friends) ? data.friends : [] });
+    if (state.giftFriendId === friendId) state.giftFriendId = "";
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    showToast("好友已删除");
+    saveRemoteGameState();
+  } catch (error) {
+    state.backend = "offline";
+    showToast(socialErrorMessage(error.message));
+  } finally {
+    state.socialLoading = false;
     render();
   }
 }
@@ -917,9 +1081,10 @@ async function authenticateAccount(mode) {
     });
     saveAccount(data.account);
     await loadRemoteGameState();
+    await loadCloudFriends({ silent: true });
     const player = getPlayer();
     if (player) savePlayer({ ...player, nickName: data.account.nickName });
-    state.backend = data.storage === "blob" || data.storage === "d1" ? "online" : "offline";
+    state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
     showToast(mode === "register" ? "账号已注册并登录" : "账号已登录");
     render();
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
@@ -952,7 +1117,9 @@ function logoutAccount() {
 function bootstrapBackend() {
   const account = getAccount();
   if (account) state.playerId = account.id;
-  loadRemoteGameState().finally(() => syncRemote("boot").finally(() => refreshLeaderboard({ silent: true })));
+  loadRemoteGameState()
+    .finally(() => loadCloudFriends({ silent: true }))
+    .finally(() => syncRemote("boot").finally(() => refreshLeaderboard({ silent: true })));
 }
 
 function bindDriver(driverId) {
@@ -1002,13 +1169,7 @@ async function loadRemoteGameState() {
   try {
     const data = await callGameApi({ action: "loadGameState", playerId: account.id, accountToken: account.authToken });
     if (!data.gameState) return;
-    if (data.gameState.player) writeScopedJson(STORAGE.player, data.gameState.player);
-    if (data.gameState.feed) writeScopedJson(STORAGE.feed, data.gameState.feed);
-    if (data.gameState.inventory) writeScopedJson(STORAGE.inventory, data.gameState.inventory);
-    if (data.gameState.gifts) writeScopedJson(STORAGE.gifts, data.gameState.gifts);
-    if (data.gameState.friends) writeScopedJson(STORAGE.friends, data.gameState.friends);
-    if (data.gameState.meta) writeScopedJson(STORAGE.meta, data.gameState.meta);
-    if (data.gameState.achievementsState) writeScopedJson(STORAGE.achievements, data.gameState.achievementsState);
+    applyRemoteGameState(data.gameState);
   } catch {
     // Local account-scoped progress remains authoritative if cloud state is unavailable.
   }
@@ -1559,27 +1720,35 @@ function renderWarehouse() {
           <div class="list">
             ${gifts.records.length ? gifts.records.slice(0, 5).map((record) => {
               const food = findFood(record.foodId);
-              return `<div class="list-row"><span>${food.emoji}</span><div><strong>送给 ${record.to}</strong><small>${food.name} x${record.quantity}</small></div><span>${record.weekId}</span></div>`;
+              const title = record.direction === "received" ? `收到 ${record.from || "好友"}` : `送给 ${record.to || "好友"}`;
+              return `<div class="list-row"><span>${food.emoji}</span><div><strong>${escapeHtml(title)}</strong><small>${food.name} x${record.quantity}</small></div><span>${record.weekId}</span></div>`;
             }).join("") : `<p class="label">还没有赠送记录。</p>`}
           </div>
         </section>
       ` : ""}
-      ${state.giftFoodId && hasFriends ? renderGiftModal(friends[0]) : ""}
+      ${state.giftFoodId && hasFriends ? renderGiftModal(friends) : ""}
     </main>
   `;
 }
 
-function renderGiftModal(friend) {
+function renderGiftModal(friends) {
   const inventory = getInventoryState();
   const food = findFood(state.giftFoodId);
   const owned = foodQuantity(inventory, food.id);
   const quantity = Math.min(state.giftQuantity, Math.min(5, owned));
+  const selectedFriend = friends.find((friend) => friend.id === state.giftFriendId) || friends[0];
   state.giftQuantity = Math.max(1, quantity);
+  state.giftFriendId = selectedFriend.id;
   return `
     <div class="modal-backdrop">
       <section class="gift-modal panel">
         <h2>赠送食物给好友</h2>
-        <p class="label">好友：${friend.name}</p>
+        <p class="label">好友：${escapeHtml(selectedFriend.name)}</p>
+        ${friends.length > 1 ? `
+          <div class="friend-choice-grid">
+            ${friends.map((friend) => `<button class="friend-chip ${friend.id === selectedFriend.id ? "active" : ""}" data-gift-friend="${friend.id}">${escapeHtml(friend.name)}</button>`).join("")}
+          </div>
+        ` : ""}
         <div class="gift-preview" style="--driver:${food.color}">
           <span>${food.emoji}</span>
           <div><strong>${food.name}</strong><small>持有 x${owned} · ${food.driverName}</small></div>
@@ -1603,19 +1772,55 @@ function openGift(foodId) {
   const friends = getFriendsState().friends;
   if (!friends.length) return showToast("暂无好友，不能赠送");
   state.giftFoodId = foodId;
+  state.giftFriendId = state.giftFriendId && friends.some((friend) => friend.id === state.giftFriendId)
+    ? state.giftFriendId
+    : friends[0].id;
   state.giftQuantity = 1;
   render();
 }
 
-function confirmGift() {
+async function confirmGift() {
   const friends = getFriendsState().friends;
   const gifts = getGiftState();
   if (!friends.length) return showToast("暂无好友，不能赠送");
   if (!state.giftFoodId || giftLeft(gifts) <= 0) return showToast("本周赠送次数已用完");
   const food = findFood(state.giftFoodId);
   const quantity = Math.min(5, state.giftQuantity);
+  const receiver = friends.find((friend) => friend.id === state.giftFriendId) || friends[0];
+  const account = getAccount();
+
+  if (isCloudAccount(account)) {
+    state.socialLoading = true;
+    render();
+    try {
+      await saveRemoteGameState();
+      const data = await callGameApi({
+        action: "sendGift",
+        playerId: account.id,
+        accountToken: account.authToken,
+        receiverId: receiver.id,
+        foodId: food.id,
+        quantity,
+        weekId: gifts.weekId,
+      });
+      if (data.gameState) applyRemoteGameState(data.gameState);
+      if (data.friends) saveFriendsState({ friends: data.friends });
+      state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+      state.giftFoodId = "";
+      state.giftFriendId = "";
+      state.giftQuantity = 1;
+      showToast(`已通过云端赠送 ${food.name} x${quantity}`);
+    } catch (error) {
+      state.backend = "offline";
+      showToast(socialErrorMessage(error.message));
+    } finally {
+      state.socialLoading = false;
+      render();
+    }
+    return;
+  }
+
   if (!consumeFood(food.id, quantity)) return showToast("库存不足，无法赠送");
-  const receiver = friends[0];
   gifts.sentThisWeek += 1;
   gifts.records.unshift({
     id: `${Date.now()}`,
@@ -1630,6 +1835,7 @@ function confirmGift() {
   saveGiftState(gifts);
   saveRemoteGameState();
   state.giftFoodId = "";
+  state.giftFriendId = "";
   state.giftQuantity = 1;
   showToast(`已赠送 ${food.name} x${quantity}`);
   render();
@@ -1861,6 +2067,60 @@ function renderAchievements() {
   `;
 }
 
+function renderFriendsPanel(account) {
+  if (!account) return "";
+  const friends = getFriendsState().friends;
+  if (account.localOnly) {
+    return `
+      <section class="panel friends-panel">
+        <h2>好友</h2>
+        <p class="label">本地账号只保存当前浏览器存档，不支持云端好友、搜索和服务端赠送。想和朋友一起玩，需要部署 Cloudflare Pages + D1 后使用云端账号。</p>
+      </section>
+    `;
+  }
+
+  const searchResults = state.friendSearchResults || [];
+  return `
+    <section class="panel friends-panel">
+      <div class="panel-head">
+        <div>
+          <h2>好友</h2>
+          <p class="label">云端好友用于开放仓库赠送；赠送次数和库存由服务器校验。</p>
+        </div>
+        <button class="mini-btn" data-action="refreshFriends" ${state.socialLoading ? "disabled" : ""}>同步</button>
+      </div>
+      <div class="friend-search">
+        <input data-friend-search maxlength="24" placeholder="搜索账号或昵称" value="${escapeHtml(state.friendSearchQuery)}" />
+        <button class="mini-btn" data-action="searchFriends" ${state.socialLoading ? "disabled" : ""}>搜索</button>
+      </div>
+      ${searchResults.length ? `
+        <div class="friend-result-list">
+          ${searchResults.map((friend) => `
+            <div class="friend-row">
+              <div>
+                <strong>${escapeHtml(friend.nickName || friend.name || friend.accountName)}</strong>
+                <small>${escapeHtml(friend.accountName || friend.id)}</small>
+              </div>
+              <button class="mini-btn" data-friend-add="${friend.id}" ${state.socialLoading ? "disabled" : ""}>添加</button>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      <div class="friend-result-list">
+        ${friends.length ? friends.map((friend) => `
+          <div class="friend-row">
+            <div>
+              <strong>${escapeHtml(friend.name || friend.nickName || friend.accountName)}</strong>
+              <small>${escapeHtml(friend.accountName || friend.id)}</small>
+            </div>
+            <button class="mini-btn" data-friend-remove="${friend.id}" ${state.socialLoading ? "disabled" : ""}>删除</button>
+          </div>
+        `).join("") : `<p class="label">还没有好友。搜索朋友的账号或昵称后添加。</p>`}
+      </div>
+    </section>
+  `;
+}
+
 function renderSettings() {
   const account = getAccount();
   const accountMode = account ? account.localOnly ? "本地账号" : "云端账号" : "";
@@ -1896,6 +2156,7 @@ function renderSettings() {
           </section>
         `}
       </section>
+      ${renderFriendsPanel(account)}
       <section class="panel">
         <h2>设置</h2>
         <p>这是 Web/PWA 版本，可以在 iOS Safari 或 Android Chrome 里添加到主屏幕。养成、食物仓库和兑换奖励会优先绑定到当前登录账号；静态站点会使用本地账号存档。</p>
@@ -1972,6 +2233,8 @@ function bindEvents() {
         render();
       }
       if (action === "refreshLeaderboard") refreshLeaderboard({ silent: false });
+      if (action === "refreshFriends") loadCloudFriends({ silent: false });
+      if (action === "searchFriends") searchCloudFriends();
       if (action === "registerAccount") authenticateAccount("register");
       if (action === "loginAccount") authenticateAccount("login");
       if (action === "registerLocalAccount") authenticateLocalAccountFromForm("register");
@@ -2010,6 +2273,23 @@ function bindEvents() {
     node.addEventListener("click", () => {
       state.giftQuantity = Math.max(1, Math.min(5, state.giftQuantity + Number(node.dataset.giftQty)));
       render();
+    });
+  });
+  app.querySelectorAll("[data-gift-friend]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.giftFriendId = node.dataset.giftFriend;
+      render();
+    });
+  });
+  app.querySelectorAll("[data-friend-add]").forEach((node) => {
+    node.addEventListener("click", () => addCloudFriend(node.dataset.friendAdd));
+  });
+  app.querySelectorAll("[data-friend-remove]").forEach((node) => {
+    node.addEventListener("click", () => removeCloudFriend(node.dataset.friendRemove));
+  });
+  app.querySelectorAll("[data-friend-search]").forEach((node) => {
+    node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") searchCloudFriends();
     });
   });
   app.querySelectorAll("[data-museum]").forEach((node) => {
