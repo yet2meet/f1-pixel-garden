@@ -7,6 +7,9 @@
     "dev": "npx netlify dev",
     "check": "node --check pwa/app.js && node --check pwa/sw.js && node --check netlify/functions/game.js && node --check functions/api/game.js && node tools/verify_project.mjs",
     "browser:smoke": "node tools/browser_smoke.mjs",
+    "api:smoke": "node tools/api_smoke.mjs",
+    "cf:check": "node tools/check_cloudflare_config.mjs",
+    "cf:d1:create": "npx wrangler d1 create f1-pixel-garden",
     "cf:dev": "npx wrangler pages dev pwa --d1 DB=f1-pixel-garden",
     "cf:d1:init": "npx wrangler d1 execute f1-pixel-garden --file=./schema.sql",
     "cf:deploy": "npx wrangler pages deploy pwa --project-name=f1-pixel-garden"

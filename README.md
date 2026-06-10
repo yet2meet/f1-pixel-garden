@@ -57,6 +57,22 @@ python -m http.server 4174 -d pwa
 npm run browser:smoke -- http://127.0.0.1:4174
 ```
 
+Cloudflare 上线前可运行配置检查：
+
+```bash
+npm run cf:check
+```
+
+它会确认 `wrangler.toml` 已填入真实 D1 `database_id`、D1 binding 名称为 `DB`、`schema.sql` 和 Pages Function 入口存在。`database_id` 还是占位值时该命令会失败，这是预期的上线保护。
+
+带后端的真实部署完成后，运行在线 API 冒烟检查：
+
+```bash
+npm run api:smoke -- https://你的 Cloudflare Pages 域名
+```
+
+该检查会创建两个临时账号，验证账号注册、好友搜索、添加好友、云存档、服务端赠送、重复赠送请求幂等和接收方入库。
+
 ## Cloudflare Pages + D1 部署
 
 推荐长期部署方式是 Cloudflare Pages + D1。
@@ -64,7 +80,7 @@ npm run browser:smoke -- http://127.0.0.1:4174
 1. 创建 D1 数据库：
 
    ```bash
-   npx wrangler d1 create f1-pixel-garden
+   npm run cf:d1:create
    ```
 
 2. 把命令返回的 `database_id` 填入 `wrangler.toml`：
@@ -86,6 +102,12 @@ npm run browser:smoke -- http://127.0.0.1:4174
 
    ```bash
    npm run cf:deploy
+   ```
+
+5. 部署完成后验证真实 API：
+
+   ```bash
+   npm run api:smoke -- https://你的 Cloudflare Pages 域名
    ```
 
 Cloudflare Pages 会发布 `pwa/`，并通过 `functions/api/game.js` 暴露 `/api/game`。
