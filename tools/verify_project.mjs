@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { onRequest } from "../functions/api/game.js";
+import { handler as netlifyHandler } from "../netlify/functions/game.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const requiredCoreAssets = [
@@ -129,6 +130,14 @@ function createMockD1() {
   };
 }
 
+function createBrokenD1() {
+  return {
+    prepare() {
+      throw new Error("mock storage failure");
+    },
+  };
+}
+
 async function apiRaw(env, payload) {
   const response = await onRequest({
     env,
@@ -146,6 +155,49 @@ async function api(env, payload) {
   const { response, data } = await apiRaw(env, payload);
   assert(response.ok, `${payload.action} failed: ${response.status} ${JSON.stringify(data)}`);
   return data;
+}
+
+async function verifyStableApiErrors() {
+  const invalidJson = await onRequest({
+    env: { DB: createMockD1() },
+    request: new Request("https://example.test/api/game", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    }),
+  });
+  const invalidJsonData = await invalidJson.json();
+  assert(invalidJson.status === 400, "invalid JSON must return HTTP 400");
+  assert(invalidJsonData.error === "invalid_json", "invalid JSON returned wrong error");
+
+  const storageFailure = await apiRaw({ DB: createBrokenD1() }, {
+    action: "registerAccount",
+    accountName: "broken_storage",
+    password: "pass1234",
+    nickName: "Broken",
+  });
+  assert(storageFailure.response.status === 503, "storage failure must return HTTP 503");
+  assert(storageFailure.data.error === "storage_error", "storage failure returned wrong error");
+}
+
+async function verifyNetlifyCompatibilityErrors() {
+  const invalidJson = await netlifyHandler({ httpMethod: "POST", body: "{" });
+  const invalidJsonData = JSON.parse(invalidJson.body);
+  assert(invalidJson.statusCode === 400, "Netlify invalid JSON must return HTTP 400");
+  assert(invalidJsonData.error === "invalid_json", "Netlify invalid JSON returned wrong error");
+
+  const missingStorage = await netlifyHandler({
+    httpMethod: "POST",
+    body: JSON.stringify({
+      action: "registerAccount",
+      accountName: "missing_blobs",
+      password: "pass1234",
+      nickName: "Missing",
+    }),
+  });
+  const missingStorageData = JSON.parse(missingStorage.body);
+  assert(missingStorage.statusCode === 503, "Netlify missing Blob storage must return HTTP 503");
+  assert(missingStorageData.error === "storage_unavailable", "Netlify missing Blob storage returned wrong error");
 }
 
 async function verifyCloudflareApi() {
@@ -314,6 +366,8 @@ async function verifyCloudflareApi() {
 verifyManifest();
 verifyResources();
 verifyServiceWorker();
+await verifyStableApiErrors();
+await verifyNetlifyCompatibilityErrors();
 await verifyCloudflareApi();
 
 console.log("Project verification passed");

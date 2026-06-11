@@ -48,6 +48,14 @@ const VALID_ACTIONS = new Set([
 const SOCIAL_ACTIONS = new Set(["listFriends", "searchAccounts", "addFriend", "removeFriend", "sendGift"]);
 
 export async function handler(event) {
+  try {
+    return await handleEvent(event);
+  } catch {
+    return storageError();
+  }
+}
+
+async function handleEvent(event) {
   if (event.httpMethod === "OPTIONS") return json(204, {});
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
 
@@ -154,6 +162,10 @@ export async function handler(event) {
     .slice(0, MAX_RANKINGS);
 
   return json(200, { ok: true, storage: "blob", weekId, rankings });
+}
+
+function storageError() {
+  return json(503, { ok: false, error: "storage_error" });
 }
 
 async function handleAccountAction(store, body) {
