@@ -422,6 +422,7 @@ const state = {
   friendSearchQuery: "",
   friendSearchResults: [],
   socialLoading: false,
+  authLoading: false,
   isFeeding: false,
   feedPickerOpen: false,
   floatingFood: false,
@@ -1103,11 +1104,13 @@ async function removeCloudFriend(friendId) {
 }
 
 async function authenticateAccount(mode) {
+  if (state.authLoading) return showToast("云端账号处理中，请稍等");
   const accountName = app.querySelector("[data-auth-account]")?.value.trim();
   const password = app.querySelector("[data-auth-password]")?.value;
   const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
   if (!accountName || !password) return showToast("请输入账号和密码");
 
+  state.authLoading = true;
   try {
     const data = await callGameApi({
       action: mode === "register" ? "registerAccount" : "loginAccount",
@@ -1120,9 +1123,9 @@ async function authenticateAccount(mode) {
     await loadCloudFriends({ silent: true });
     const player = getPlayer();
     if (player) savePlayer({ ...player, nickName: data.account.nickName });
+    await saveRemoteGameState();
     state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
     showToast(mode === "register" ? "账号已注册并登录" : "账号已登录");
-    render();
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
   } catch (error) {
     const message = {
@@ -1132,10 +1135,14 @@ async function authenticateAccount(mode) {
       storage_unavailable: "云端账号暂时不可用",
     }[error.message] || "云端账号暂时不可用，请使用本地账号按钮或等待后端恢复";
     showToast(message);
+  } finally {
+    state.authLoading = false;
+    render();
   }
 }
 
 function authenticateLocalAccountFromForm(mode) {
+  if (state.authLoading) return showToast("云端账号处理中，请稍等");
   const accountName = app.querySelector("[data-auth-account]")?.value.trim();
   const password = app.querySelector("[data-auth-password]")?.value;
   const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
@@ -1164,7 +1171,6 @@ function bindDriver(driverId) {
   const driver = getDriver(driverId);
   const player = {
     id: "me",
-    nickName: old ? old.nickName : "像素车迷",
     driverId: driver.id,
     nickName: account ? account.nickName : old ? old.nickName : "Pixel Racer",
     growth: old ? old.growth || 0 : 0,
@@ -2193,6 +2199,7 @@ function renderFriendsPanel(account) {
 function renderSettings() {
   const account = getAccount();
   const accountMode = account ? account.localOnly ? "本地账号" : "云端账号" : "";
+  const authDisabled = state.authLoading ? "disabled" : "";
   const syncStatus = !account
     ? "未登录账号。本地进度会保存在当前浏览器。"
     : account.localOnly
@@ -2228,10 +2235,10 @@ function renderSettings() {
             <input data-auth-password autocomplete="current-password" maxlength="72" type="password" placeholder="密码：至少 4 位" />
           </div>
           <section class="actions account-actions">
-            <button class="btn" data-action="registerAccount">云端注册</button>
-            <button class="btn secondary" data-action="loginAccount">云端登录</button>
-            <button class="btn secondary" data-action="registerLocalAccount">本地注册</button>
-            <button class="btn secondary" data-action="loginLocalAccount">本地登录</button>
+            <button class="btn" data-action="registerAccount" ${authDisabled}>${state.authLoading ? "连接中" : "云端注册"}</button>
+            <button class="btn secondary" data-action="loginAccount" ${authDisabled}>云端登录</button>
+            <button class="btn secondary" data-action="registerLocalAccount" ${authDisabled}>本地注册</button>
+            <button class="btn secondary" data-action="loginLocalAccount" ${authDisabled}>本地登录</button>
           </section>
         `}
       </section>

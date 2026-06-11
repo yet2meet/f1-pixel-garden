@@ -154,6 +154,7 @@ async function main() {
 
     const desktop = await runViewport(cdp, "desktop", 1180, 820, false);
     const mobile = await runViewport(cdp, "mobile", 390, 844, true);
+    const cloudAuthMigration = await runCloudAuthMigrationCheck(cdp);
 
     const severeEvents = runtimeEvents.filter((event) => {
       const text = String(event.text || "");
@@ -164,13 +165,123 @@ async function main() {
     });
     assert(severeEvents.length === 0, `browser runtime errors: ${JSON.stringify(severeEvents)}`);
 
-    console.log(JSON.stringify({ desktop, mobile, runtimeEvents: severeEvents, screenshotDir }, null, 2));
+    console.log(JSON.stringify({ desktop, mobile, cloudAuthMigration, runtimeEvents: severeEvents, screenshotDir }, null, 2));
   } finally {
     cdp?.close();
     browser.kill();
     await sleep(400);
     fs.rmSync(profileDir, { recursive: true, force: true });
   }
+}
+
+async function runCloudAuthMigrationCheck(cdp) {
+  await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.__gameApiCalls = [];
+      window.fetch = async (input, init = {}) => {
+        const url = String(input && input.url ? input.url : input);
+        if (!url.includes("/api/game") && !url.includes("/.netlify/functions/game")) {
+          return nativeFetch(input, init);
+        }
+        let body = {};
+        try {
+          body = JSON.parse(init.body || "{}");
+        } catch {}
+        window.__gameApiCalls.push(body);
+        const account = {
+          id: "acct_browser_smoke",
+          accountName: body.accountName || "cloud_smoke",
+          nickName: body.nickName || "Cloud Smoke",
+          authToken: "token_browser_smoke"
+        };
+        let status = 200;
+        let payload = { ok: true, storage: "d1" };
+        if (body.action === "registerAccount" || body.action === "loginAccount") {
+          payload = { ok: true, storage: "d1", account };
+        } else if (body.action === "loadGameState") {
+          payload = { ok: true, storage: "d1", gameState: null };
+        } else if (body.action === "listFriends") {
+          payload = { ok: true, storage: "d1", friends: [] };
+        } else if (body.action === "saveGameState") {
+          payload = { ok: true, storage: "d1", gameState: body.gameState };
+        } else if (body.action === "syncPlayer") {
+          payload = { ok: true, storage: "d1", player: body.player };
+        } else if (body.action === "leaderboard") {
+          payload = { ok: true, storage: "d1", weekId: body.weekId, rankings: [] };
+        } else {
+          status = 400;
+          payload = { ok: false, error: "invalid_action" };
+        }
+        return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
+      };
+    })();`,
+  });
+
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?cloud-auth=${Date.now()}` });
+  await waitForApp(cdp);
+  await evaluate(cdp, `(() => {
+    localStorage.clear();
+    const now = Date.now();
+    localStorage.setItem("f1_pixel_pwa_player", JSON.stringify({
+      id: "me",
+      nickName: "Guest Progress",
+      driverId: "verstappen",
+      growth: 88,
+      treasures: 3,
+      achievements: [],
+      championWeeks: [],
+      createdAt: now,
+      updatedAt: now
+    }));
+    localStorage.setItem("f1_pixel_pwa_feed", JSON.stringify({
+      today: "2026-06-11",
+      weekId: "2026-W24",
+      usedFeeds: 1,
+      stock: 4,
+      weeklyFeed: 20,
+      logs: []
+    }));
+    localStorage.setItem("f1_pixel_pwa_food_inventory", JSON.stringify({
+      items: { verstappen: 2, leclerc: 1 }
+    }));
+    return true;
+  })()`);
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?cloud-auth=${Date.now()}-seeded` });
+  await waitForApp(cdp);
+  await waitUntil(cdp, `(() => window.__gameApiCalls && window.__gameApiCalls.some((call) => call.action === "leaderboard"))()`);
+
+  await click(cdp, '[data-view="settings"]');
+  await waitForSelector(cdp, ".settings-main");
+  await evaluate(cdp, `(() => {
+    document.querySelector("[data-auth-account]").value = "cloud_smoke";
+    document.querySelector("[data-auth-nickname]").value = "Cloud Smoke";
+    document.querySelector("[data-auth-password]").value = "pass1234";
+    return true;
+  })()`);
+  await click(cdp, '[data-action="registerAccount"]');
+  await waitUntil(cdp, `(() => window.__gameApiCalls && window.__gameApiCalls.some((call) => call.action === "saveGameState"))()`);
+
+  const metrics = await evaluate(cdp, `(() => {
+    const calls = window.__gameApiCalls || [];
+    const saved = calls.find((call) => call.action === "saveGameState");
+    const account = JSON.parse(localStorage.getItem("f1_pixel_pwa_account") || "null");
+    const scopedPlayer = JSON.parse(localStorage.getItem("f1_pixel_pwa_player_acct_browser_smoke") || "null");
+    return {
+      actions: calls.map((call) => call.action),
+      accountId: account?.id || "",
+      savedGrowth: saved?.gameState?.player?.growth || 0,
+      savedNickName: saved?.gameState?.player?.nickName || "",
+      savedFood: saved?.gameState?.inventory?.items?.verstappen || 0,
+      scopedGrowth: scopedPlayer?.growth || 0,
+      syncState: document.querySelector(".sync-state")?.textContent || ""
+    };
+  })()`);
+  assert(metrics.accountId === "acct_browser_smoke", "cloud auth migration did not save cloud account");
+  assert(metrics.savedGrowth === 88, "cloud auth migration did not upload guest growth");
+  assert(metrics.savedFood === 2, "cloud auth migration did not upload guest inventory");
+  assert(metrics.scopedGrowth === 88, "cloud auth migration did not scope guest player");
+  return metrics;
 }
 
 async function runViewport(cdp, label, width, height, mobile) {
@@ -328,6 +439,12 @@ async function waitUntil(cdp, expression) {
     href: location.href,
     readyState: document.readyState,
     title: document.title,
+    apiCalls: (window.__gameApiCalls || []).map((call) => call.action),
+    authButtons: [...document.querySelectorAll("[data-action$='Account']")].map((button) => ({
+      action: button.dataset.action,
+      disabled: button.disabled,
+      text: button.textContent
+    })),
     body: (document.body?.innerText || "").slice(0, 600),
     html: document.documentElement.outerHTML.slice(0, 600)
   }))()`).catch((error) => ({ error: error.message }));
