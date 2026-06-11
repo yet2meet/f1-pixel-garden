@@ -154,6 +154,7 @@ async function main() {
 
     const desktop = await runViewport(cdp, "desktop", 1180, 820, false);
     const mobile = await runViewport(cdp, "mobile", 390, 844, true);
+    const economy = await runEconomyCheck(cdp);
     const cloudAuthMigration = await runCloudAuthMigrationCheck(cdp);
 
     const severeEvents = runtimeEvents.filter((event) => {
@@ -165,13 +166,117 @@ async function main() {
     });
     assert(severeEvents.length === 0, `browser runtime errors: ${JSON.stringify(severeEvents)}`);
 
-    console.log(JSON.stringify({ desktop, mobile, cloudAuthMigration, runtimeEvents: severeEvents, screenshotDir }, null, 2));
+    console.log(JSON.stringify({ desktop, mobile, economy, cloudAuthMigration, runtimeEvents: severeEvents, screenshotDir }, null, 2));
   } finally {
     cdp?.close();
     browser.kill();
     await sleep(400);
     fs.rmSync(profileDir, { recursive: true, force: true });
   }
+}
+
+async function runEconomyCheck(cdp) {
+  const foodIds = [
+    "verstappen",
+    "leclerc",
+    "hamilton",
+    "norris",
+    "piastri",
+    "russell",
+    "antonelli",
+    "alonso",
+    "espresso_gel",
+    "hydration_pack",
+  ];
+
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}` });
+  await waitForApp(cdp);
+  await evaluate(cdp, `(() => {
+    localStorage.clear();
+    const now = Date.now();
+    localStorage.setItem("f1_pixel_pwa_player", JSON.stringify({
+      id: "me",
+      nickName: "Economy Smoke",
+      driverId: "verstappen",
+      growth: 40,
+      treasures: 0,
+      achievements: [],
+      championWeeks: [],
+      createdAt: now,
+      updatedAt: now
+    }));
+    localStorage.setItem("f1_pixel_pwa_food_inventory", JSON.stringify({ items: {} }));
+    return true;
+  })()`);
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-daily` });
+  await waitForApp(cdp);
+  await waitUntil(cdp, `(() => {
+    const inventory = JSON.parse(localStorage.getItem("f1_pixel_pwa_food_inventory") || "{}");
+    return Boolean(inventory.lastDailyReward);
+  })()`);
+  const dailyFirst = await readEconomyState(cdp, foodIds);
+
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-daily-repeat` });
+  await waitForApp(cdp);
+  const dailySecond = await readEconomyState(cdp, foodIds);
+  assert(dailyFirst.totalFood === 1, `daily reward should grant exactly one food, got ${dailyFirst.totalFood}`);
+  assert(dailySecond.totalFood === dailyFirst.totalFood, "daily reward repeated after same-day reload");
+  assert(dailySecond.lastDailyReward === dailyFirst.lastDailyReward, "daily reward date changed after same-day reload");
+
+  await evaluate(cdp, `(() => {
+    const today = new Date();
+    const todayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    const foodIds = ${JSON.stringify(foodIds)};
+    const items = Object.fromEntries(foodIds.map((foodId) => [foodId, 1]));
+    const now = Date.now();
+    localStorage.setItem("f1_pixel_pwa_player", JSON.stringify({
+      id: "me",
+      nickName: "Economy Smoke",
+      driverId: "verstappen",
+      growth: 40,
+      treasures: 0,
+      achievements: [],
+      championWeeks: [],
+      createdAt: now,
+      updatedAt: now
+    }));
+    localStorage.setItem("f1_pixel_pwa_food_inventory", JSON.stringify({ items, lastDailyReward: todayKey }));
+    return true;
+  })()`);
+  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-redeem` });
+  await waitForApp(cdp);
+  await click(cdp, '[data-view="warehouse"]');
+  await waitForSelector(cdp, ".warehouse-main");
+  await click(cdp, '[data-action="redeemCollection"]');
+  await waitUntil(cdp, `(() => {
+    const player = JSON.parse(localStorage.getItem("f1_pixel_pwa_player") || "{}");
+    const inventory = JSON.parse(localStorage.getItem("f1_pixel_pwa_food_inventory") || "{}");
+    const items = inventory.items || {};
+    return player.treasures === 10 && player.achievements?.includes("gold_foodie") &&
+      ${JSON.stringify(foodIds)}.every((foodId) => items[foodId] === 0);
+  })()`);
+  const redeemed = await readEconomyState(cdp, foodIds);
+  assert(redeemed.treasures === 10, "collection redeem did not grant treasures");
+  assert(redeemed.hasGoldFoodie, "collection redeem did not unlock gold_foodie");
+  assert(redeemed.totalFood === 0, "collection redeem did not consume all food types");
+
+  return { dailyFirst, dailySecond, redeemed };
+}
+
+async function readEconomyState(cdp, foodIds) {
+  return evaluate(cdp, `(() => {
+    const foodIds = ${JSON.stringify(foodIds)};
+    const inventory = JSON.parse(localStorage.getItem("f1_pixel_pwa_food_inventory") || "{}");
+    const player = JSON.parse(localStorage.getItem("f1_pixel_pwa_player") || "{}");
+    const items = inventory.items || {};
+    return {
+      totalFood: foodIds.reduce((sum, foodId) => sum + (Number(items[foodId]) || 0), 0),
+      counts: Object.fromEntries(foodIds.map((foodId) => [foodId, Number(items[foodId]) || 0])),
+      lastDailyReward: inventory.lastDailyReward || "",
+      treasures: Number(player.treasures) || 0,
+      hasGoldFoodie: Array.isArray(player.achievements) && player.achievements.includes("gold_foodie")
+    };
+  })()`);
 }
 
 async function runCloudAuthMigrationCheck(cdp) {
