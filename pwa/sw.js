@@ -1,4 +1,5 @@
-const CACHE_NAME = "f1-pixel-pwa-v32";
+const CACHE_NAME = "f1-pixel-pwa-v33";
+const APP_SHELL_URL = new URL("./index.html", self.registration.scope).toString();
 
 const drivers = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];
 const expressions = ["neutral", "tap", "anticipate", "eat", "satisfied", "celebrate", "tired", "depleted"];
@@ -50,11 +51,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          cacheOkResponse(event.request, response);
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => cachedFallback(event.request, url))
     );
     return;
   }
@@ -63,10 +63,23 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        cacheOkResponse(event.request, response);
         return response;
       });
     })
   );
 });
+
+function cacheOkResponse(request, response) {
+  if (!response || !response.ok) return;
+  const copy = response.clone();
+  caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+}
+
+function cachedFallback(request, url) {
+  if (request.mode === "navigate") return caches.match(APP_SHELL_URL);
+  if (url.pathname.endsWith("/app.js")) return caches.match("./app.js");
+  if (url.pathname.endsWith("/styles.css")) return caches.match("./styles.css");
+  if (url.pathname.endsWith("/sw.js")) return caches.match("./sw.js");
+  return caches.match(request);
+}

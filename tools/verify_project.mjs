@@ -77,6 +77,10 @@ function verifyServiceWorker() {
   });
   const portraitMatches = sw.match(/portraits\/\$\{driver\}_\$\{serial\}_\$\{expression\}\.png/);
   assert(portraitMatches, "service worker must cache generated driver portraits");
+  assert(sw.includes("APP_SHELL_URL"), "service worker must define an app shell fallback");
+  assert(sw.includes('request.mode === "navigate"'), "service worker must handle offline navigations");
+  assert(sw.includes("caches.match(APP_SHELL_URL)"), "service worker must fall back to cached index.html for navigations");
+  assert(sw.includes("response.ok"), "service worker must avoid caching failed responses");
 }
 
 function createMockD1() {
