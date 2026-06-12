@@ -5,4 +5,4 @@ pages_build_output_dir = "pwa"
 [[d1_databases]]
 binding = "DB"
 database_name = "f1-pixel-garden"
-database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
+database_id = "1a0907df-16bd-446d-96b4-8dae2e2f0f79"
