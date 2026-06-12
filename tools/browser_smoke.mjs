@@ -190,7 +190,7 @@ async function runEconomyCheck(cdp) {
     "hydration_pack",
   ];
 
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}` });
+  await navigate(cdp, `${baseUrl}/?economy=${Date.now()}`);
   await waitForApp(cdp);
   await evaluate(cdp, `(() => {
     localStorage.clear();
@@ -209,7 +209,7 @@ async function runEconomyCheck(cdp) {
     localStorage.setItem("f1_pixel_pwa_food_inventory", JSON.stringify({ items: {} }));
     return true;
   })()`);
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-daily` });
+  await navigate(cdp, `${baseUrl}/?economy=${Date.now()}-daily`);
   await waitForApp(cdp);
   await waitUntil(cdp, `(() => {
     const inventory = JSON.parse(localStorage.getItem("f1_pixel_pwa_food_inventory") || "{}");
@@ -217,7 +217,7 @@ async function runEconomyCheck(cdp) {
   })()`);
   const dailyFirst = await readEconomyState(cdp, foodIds);
 
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-daily-repeat` });
+  await navigate(cdp, `${baseUrl}/?economy=${Date.now()}-daily-repeat`);
   await waitForApp(cdp);
   const dailySecond = await readEconomyState(cdp, foodIds);
   assert(dailyFirst.totalFood === 1, `daily reward should grant exactly one food, got ${dailyFirst.totalFood}`);
@@ -244,7 +244,7 @@ async function runEconomyCheck(cdp) {
     localStorage.setItem("f1_pixel_pwa_food_inventory", JSON.stringify({ items, lastDailyReward: todayKey }));
     return true;
   })()`);
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?economy=${Date.now()}-redeem` });
+  await navigate(cdp, `${baseUrl}/?economy=${Date.now()}-redeem`);
   await waitForApp(cdp);
   await click(cdp, '[data-view="warehouse"]');
   await waitForSelector(cdp, ".warehouse-main");
@@ -324,7 +324,7 @@ async function runCloudAuthMigrationCheck(cdp) {
     })();`,
   });
 
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?cloud-auth=${Date.now()}` });
+  await navigate(cdp, `${baseUrl}/?cloud-auth=${Date.now()}`);
   await waitForApp(cdp);
   await evaluate(cdp, `(() => {
     localStorage.clear();
@@ -353,7 +353,7 @@ async function runCloudAuthMigrationCheck(cdp) {
     }));
     return true;
   })()`);
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?cloud-auth=${Date.now()}-seeded` });
+  await navigate(cdp, `${baseUrl}/?cloud-auth=${Date.now()}-seeded`);
   await waitForApp(cdp);
   await waitUntil(cdp, `(() => window.__gameApiCalls && window.__gameApiCalls.some((call) => call.action === "leaderboard"))()`);
 
@@ -407,10 +407,10 @@ async function runViewport(cdp, label, width, height, mobile) {
     deviceScaleFactor: mobile ? 2 : 1,
     mobile,
   });
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?smoke=${Date.now()}-${label}` });
+  await navigate(cdp, `${baseUrl}/?smoke=${Date.now()}-${label}`);
   await waitForApp(cdp);
   await evaluate(cdp, "localStorage.clear(); true");
-  await cdp.send("Page.navigate", { url: `${baseUrl}/?smoke=${Date.now()}-${label}-clean` });
+  await navigate(cdp, `${baseUrl}/?smoke=${Date.now()}-${label}-clean`);
   await waitForApp(cdp);
 
   const selectMetrics = await evaluate(cdp, `(() => ({
@@ -554,6 +554,13 @@ async function seedGiftState(cdp) {
 
 async function waitForApp(cdp) {
   await waitUntil(cdp, `["interactive", "complete"].includes(document.readyState) && Boolean(document.querySelector("#app .tabbar"))`);
+}
+
+async function navigate(cdp, url) {
+  await evaluate(cdp, "window.stop(); true").catch(() => false);
+  await cdp.send("Page.stopLoading").catch(() => {});
+  await sleep(250);
+  await cdp.send("Page.navigate", { url });
 }
 
 async function waitForSelector(cdp, selector) {
