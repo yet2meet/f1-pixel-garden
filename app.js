@@ -423,6 +423,11 @@ const state = {
   friendSearchResults: [],
   socialLoading: false,
   authLoading: false,
+  authDraft: {
+    accountName: "",
+    nickName: "",
+    password: "",
+  },
   isFeeding: false,
   feedPickerOpen: false,
   floatingFood: false,
@@ -1103,11 +1108,17 @@ async function removeCloudFriend(friendId) {
   }
 }
 
+function readAuthDraft() {
+  const accountName = (app.querySelector("[data-auth-account]")?.value ?? state.authDraft.accountName).trim();
+  const password = app.querySelector("[data-auth-password]")?.value ?? state.authDraft.password;
+  const nickName = (app.querySelector("[data-auth-nickname]")?.value ?? state.authDraft.nickName).trim() || accountName;
+  state.authDraft = { accountName, nickName, password };
+  return state.authDraft;
+}
+
 async function authenticateAccount(mode) {
   if (state.authLoading) return showToast("云端账号处理中，请稍等");
-  const accountName = app.querySelector("[data-auth-account]")?.value.trim();
-  const password = app.querySelector("[data-auth-password]")?.value;
-  const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
+  const { accountName, password, nickName } = readAuthDraft();
   if (!accountName || !password) return showToast("请输入账号和密码");
 
   state.authLoading = true;
@@ -1125,6 +1136,7 @@ async function authenticateAccount(mode) {
     if (player) savePlayer({ ...player, nickName: data.account.nickName });
     await saveRemoteGameState();
     state.backend = cloudStorageOnline(data.storage) ? "online" : "offline";
+    state.authDraft.password = "";
     showToast(mode === "register" ? "账号已注册并登录" : "账号已登录");
     syncRemote("auth").finally(() => refreshLeaderboard({ silent: true }));
   } catch (error) {
@@ -1143,11 +1155,9 @@ async function authenticateAccount(mode) {
 
 function authenticateLocalAccountFromForm(mode) {
   if (state.authLoading) return showToast("云端账号处理中，请稍等");
-  const accountName = app.querySelector("[data-auth-account]")?.value.trim();
-  const password = app.querySelector("[data-auth-password]")?.value;
-  const nickName = app.querySelector("[data-auth-nickname]")?.value.trim() || accountName;
+  const { accountName, password, nickName } = readAuthDraft();
   if (!accountName || !password) return showToast("请输入账号和密码");
-  authenticateLocalAccount(mode, accountName, password, nickName);
+  if (authenticateLocalAccount(mode, accountName, password, nickName)) state.authDraft.password = "";
 }
 
 function logoutAccount() {
@@ -1707,11 +1717,62 @@ function renderHome() {
         </div>
       </section>
 
+      ${renderDailyAgenda({ feed, inventory, totalOwnedFoods, remain })}
+
       <section class="actions">
         <button class="btn" data-action="openFeedPicker" ${disabled ? "disabled" : ""}>投喂食物</button>
         <button class="btn secondary" data-view="select">更换车手</button>
       </section>
     </main>
+  `;
+}
+
+function renderDailyAgenda({ feed, inventory, totalOwnedFoods, remain }) {
+  const account = getAccount();
+  const collection = collectionCount(inventory);
+  const canFeed = remain > 0 && (feed.stock > 0 || totalOwnedFoods > 0);
+  const syncDone = account?.localOnly || (isCloudAccount(account) && state.backend === "online" && !state.syncPending);
+  const syncDetail = !account
+    ? "未登录 · 本地存档"
+    : account.localOnly
+      ? "本地账号"
+      : state.syncPending
+        ? "等待云端恢复"
+        : state.backend === "online"
+          ? "云端在线"
+          : "本地模式";
+  const items = [
+    {
+      done: feed.usedFeeds >= DAILY_LIMIT,
+      title: "今日投喂",
+      detail: canFeed ? `还可 ${remain} 次 · 食物 ${totalOwnedFoods}` : "今日已收工",
+      progress: Math.round((feed.usedFeeds / DAILY_LIMIT) * 100),
+    },
+    {
+      done: collection >= foodCatalog.length,
+      title: "食物收集",
+      detail: collection >= foodCatalog.length ? "可兑换珍珠" : `${collection}/${foodCatalog.length} 已收集`,
+      progress: Math.round((collection / foodCatalog.length) * 100),
+    },
+    {
+      done: Boolean(syncDone),
+      title: "账号同步",
+      detail: syncDetail,
+      progress: syncDone ? 100 : 35,
+    },
+  ];
+  return `
+    <section class="agenda-strip" aria-label="今日赛程">
+      ${items.map((item) => `
+        <article class="agenda-item ${item.done ? "done" : ""}" style="--progress:${item.progress}%">
+          <span class="agenda-dot">${item.done ? "✓" : "·"}</span>
+          <div>
+            <strong>${item.title}</strong>
+            <small>${item.detail}</small>
+          </div>
+        </article>
+      `).join("")}
+    </section>
   `;
 }
 
@@ -2230,9 +2291,9 @@ function renderSettings() {
         ` : `
           <p class="label">云端登录用于跨设备关联旧账号；本地登录只保存到当前浏览器。当前 GitHub Pages 静态站点没有云函数时，云端登录会失败，不会再自动切换成本地账号。</p>
           <div class="account-form">
-            <input data-auth-account autocomplete="username" maxlength="24" placeholder="账号：英文/数字/_/-" />
-            <input data-auth-nickname maxlength="24" placeholder="昵称：排行榜显示名" />
-            <input data-auth-password autocomplete="current-password" maxlength="72" type="password" placeholder="密码：至少 4 位" />
+            <input data-auth-account autocomplete="username" maxlength="24" placeholder="账号：英文/数字/_/-" value="${escapeHtml(state.authDraft.accountName)}" />
+            <input data-auth-nickname maxlength="24" placeholder="昵称：排行榜显示名" value="${escapeHtml(state.authDraft.nickName)}" />
+            <input data-auth-password autocomplete="current-password" maxlength="72" type="password" placeholder="密码：至少 4 位" value="${escapeHtml(state.authDraft.password)}" />
           </div>
           <section class="actions account-actions">
             <button class="btn" data-action="registerAccount" ${authDisabled}>${state.authLoading ? "连接中" : "云端注册"}</button>
@@ -2378,6 +2439,22 @@ function bindEvents() {
   app.querySelectorAll("[data-friend-search]").forEach((node) => {
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter") searchCloudFriends();
+    });
+  });
+  app.querySelectorAll("[data-auth-account]").forEach((node) => {
+    node.addEventListener("input", () => {
+      state.authDraft.accountName = node.value.trim();
+      if (!state.authDraft.nickName) state.authDraft.nickName = state.authDraft.accountName;
+    });
+  });
+  app.querySelectorAll("[data-auth-nickname]").forEach((node) => {
+    node.addEventListener("input", () => {
+      state.authDraft.nickName = node.value.trim();
+    });
+  });
+  app.querySelectorAll("[data-auth-password]").forEach((node) => {
+    node.addEventListener("input", () => {
+      state.authDraft.password = node.value;
     });
   });
   app.querySelectorAll("[data-museum]").forEach((node) => {
