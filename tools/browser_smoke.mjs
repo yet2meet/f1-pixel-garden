@@ -92,13 +92,14 @@ class CdpSession {
   send(method, params = {}) {
     const id = this.nextId++;
     this.ws.send(JSON.stringify({ id, method, params }));
+    const timeoutMs = method === "Page.navigate" ? 30000 : 10000;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       setTimeout(() => {
         if (!this.pending.has(id)) return;
         this.pending.delete(id);
         reject(new Error(`CDP timeout: ${method}`));
-      }, 10000).unref?.();
+      }, timeoutMs).unref?.();
     });
   }
 
