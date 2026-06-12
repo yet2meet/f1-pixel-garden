@@ -359,11 +359,21 @@ async function runCloudAuthMigrationCheck(cdp) {
   await click(cdp, '[data-view="settings"]');
   await waitForSelector(cdp, ".settings-main");
   await evaluate(cdp, `(() => {
-    document.querySelector("[data-auth-account]").value = "cloud_smoke";
-    document.querySelector("[data-auth-nickname]").value = "Cloud Smoke";
-    document.querySelector("[data-auth-password]").value = "pass1234";
+    const setInput = (selector, value) => {
+      const node = document.querySelector(selector);
+      node.value = value;
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    setInput("[data-auth-account]", "cloud_smoke");
+    setInput("[data-auth-nickname]", "Cloud Smoke");
+    setInput("[data-auth-password]", "pass1234");
     return true;
   })()`);
+  await click(cdp, '[data-view="settings"]');
+  await waitUntil(cdp, `(() =>
+    document.querySelector("[data-auth-account]")?.value === "cloud_smoke" &&
+    document.querySelector("[data-auth-password]")?.value === "pass1234"
+  )()`);
   await click(cdp, '[data-action="registerAccount"]');
   await waitUntil(cdp, `(() => window.__gameApiCalls && window.__gameApiCalls.some((call) => call.action === "saveGameState"))()`);
 
@@ -419,17 +429,36 @@ async function runViewport(cdp, label, width, height, mobile) {
   })()`);
   const homeMetrics = await evaluate(cdp, `(() => {
     const portrait = document.querySelector("[data-home-portrait]");
+    const agenda = document.querySelector(".agenda-strip");
+    const actions = document.querySelector(".home-main > .actions");
+    const toast = document.querySelector(".toast");
+    const agendaRect = agenda?.getBoundingClientRect();
+    const actionsRect = actions?.getBoundingClientRect();
+    const toastRect = toast?.getBoundingClientRect();
+    const toastClearOfActions = !toastRect || !actionsRect ||
+      toastRect.bottom <= actionsRect.top ||
+      toastRect.top >= actionsRect.bottom ||
+      toastRect.right <= actionsRect.left ||
+      toastRect.left >= actionsRect.right;
     return {
       tabCount: document.querySelectorAll(".tabbar button").length,
       portraitNatural: portrait ? [portrait.naturalWidth, portrait.naturalHeight] : [0, 0],
       feedButton: Boolean(document.querySelector('[data-action="openFeedPicker"]')),
+      agendaItems: document.querySelectorAll(".agenda-item").length,
+      agendaBeforeActions: agendaRect && actionsRect ? agendaRect.bottom <= actionsRect.top + 2 : false,
+      toastClearOfActions,
       overflowX: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
     };
   })()`);
   assert(homeMetrics.tabCount === 7, `${label}: tabbar should have 7 tabs`);
   assert(homeMetrics.portraitNatural[0] > 0 && homeMetrics.portraitNatural[1] > 0, `${label}: driver portrait did not load`);
   assert(homeMetrics.feedButton, `${label}: feed button missing`);
+  assert(homeMetrics.agendaItems === 3, `${label}: daily agenda should have 3 items`);
+  assert(homeMetrics.agendaBeforeActions, `${label}: daily agenda overlaps home actions`);
+  assert(homeMetrics.toastClearOfActions, `${label}: toast overlaps home actions`);
   assert(homeMetrics.overflowX <= 2, `${label}: home view has horizontal overflow ${homeMetrics.overflowX}`);
+  await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false })
+    .then((shot) => fs.writeFileSync(path.join(screenshotDir, `${label}-home.png`), Buffer.from(shot.data, "base64")));
 
   await click(cdp, '[data-action="openFeedPicker"]');
   await waitForSelector(cdp, ".feed-picker");

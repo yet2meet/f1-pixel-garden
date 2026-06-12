@@ -1,4 +1,4 @@
-const CACHE_NAME = "f1-pixel-pwa-v33";
+const CACHE_NAME = "f1-pixel-pwa-v34";
 const APP_SHELL_URL = new URL("./index.html", self.registration.scope).toString();
 
 const drivers = ["verstappen", "leclerc", "hamilton", "norris", "piastri", "russell", "antonelli", "alonso"];

@@ -161,7 +161,7 @@ main {
 }
 
 .home-main {
-  grid-template-rows: auto minmax(300px, 1fr) auto auto;
+  grid-template-rows: auto minmax(236px, 1fr) auto auto auto;
 }
 
 main:not(.home-main) {
@@ -432,6 +432,86 @@ main:not(.home-main)::-webkit-scrollbar-thumb {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(5px, 1.4vw, 10px);
+}
+
+.agenda-strip {
+  min-height: clamp(52px, 7.8vh, 64px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(5px, 1.3vw, 8px);
+}
+
+.agenda-item {
+  position: relative;
+  min-width: 0;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(90deg, rgba(255, 23, 68, 0.16), transparent 42%),
+    rgba(2, 9, 19, 0.86);
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  overflow: hidden;
+}
+
+.agenda-item::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: calc(100% - var(--progress, 0%));
+  bottom: 0;
+  height: 3px;
+  background: var(--f1-red);
+}
+
+.agenda-item.done {
+  border-color: rgba(57, 255, 20, 0.42);
+  background:
+    linear-gradient(90deg, rgba(57, 255, 20, 0.16), transparent 42%),
+    rgba(2, 9, 19, 0.86);
+}
+
+.agenda-item.done::after {
+  background: var(--f1-green);
+}
+
+.agenda-dot {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(57, 255, 20, 0.58);
+  color: var(--f1-green);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+.agenda-item strong,
+.agenda-item small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda-item strong {
+  color: var(--f1-white);
+  font-size: clamp(10px, 2.55vw, 12px);
+}
+
+.agenda-item small {
+  margin-top: 2px;
+  color: var(--f1-muted);
+  font-family: "Space Mono", Consolas, "Microsoft YaHei", monospace;
+  font-size: clamp(8px, 2.15vw, 10px);
 }
 
 .feed-picker {
@@ -1423,7 +1503,7 @@ main:not(.home-main) .actions .btn {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(72px + var(--safe-bottom));
+  top: calc(max(8px, var(--safe-top)) + clamp(118px, 16vh, 148px));
   z-index: 30;
   transform: translateX(-50%);
   max-width: min(420px, calc(100vw - 32px));
@@ -1433,6 +1513,7 @@ main:not(.home-main) .actions .btn {
   color: var(--f1-white);
   clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
   box-shadow: 0 0 18px rgba(57, 255, 20, 0.24);
+  pointer-events: none;
 }
 
 .empty {
@@ -1562,6 +1643,10 @@ main:not(.home-main) .actions .btn {
     gap: 6px;
   }
 
+  .home-main {
+    grid-template-rows: auto minmax(218px, 1fr) auto auto auto;
+  }
+
   .stats-grid {
     gap: 5px;
   }
@@ -1569,6 +1654,23 @@ main:not(.home-main) .actions .btn {
   .stat {
     padding-left: 6px;
     padding-right: 6px;
+  }
+
+  .agenda-strip {
+    gap: 4px;
+  }
+
+  .agenda-item {
+    min-height: 48px;
+    gap: 4px;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .agenda-dot {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
   }
 
   .actions {
@@ -1579,5 +1681,9 @@ main:not(.home-main) .actions .btn {
 @media (min-width: 640px) {
   .app-shell {
     width: min(100vw, 560px);
+  }
+
+  .toast {
+    top: calc(max(8px, var(--safe-top)) + 78px);
   }
 }
